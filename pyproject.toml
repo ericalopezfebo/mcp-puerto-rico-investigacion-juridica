@@ -26,10 +26,9 @@ Issues = "https://github.com/ericalopezfebo/mcp-puerto-rico-sentencias/issues"
 [project.scripts]
 mcp-puerto-rico-sentencias = "server:main"
 velum = "velum:main"
-velum-local = "velum_local:main"
 
 [tool.setuptools]
-py-modules = ["server", "velum", "velum_local"]
+py-modules = ["server", "velum"]
 packages = ["mcp_server", "mcp_server.sources"]
 
 [build-system]
