@@ -1,0 +1,9 @@
+services:
+  - type: web
+    name: mcp-puerto-rico-sentencias
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    envVars:
+      - key: MCP_HOST
+        value: 0.0.0.0
