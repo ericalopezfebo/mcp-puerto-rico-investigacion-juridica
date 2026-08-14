@@ -4,20 +4,35 @@ Servidor **Model Context Protocol (MCP)** para buscar y consultar jurisprudencia
 
 El proyecto toma como referencia la experiencia de [DerechoVirtual/mcp-cendoj-sentencias](https://github.com/DerechoVirtual/mcp-cendoj-sentencias), pero está diseñado específicamente para las fuentes públicas de Puerto Rico.
 
+## Regla crítica: integridad de citas
+
+**Este MCP NO puede inventar casos, sentencias, citas, nombres de las partes, jueces, fechas, números de caso, holdings ni citas textuales.**
+
+La regla es **source-first / zero citation hallucination**:
+
+1. Una autoridad jurídica solo se presenta como verificada cuando sus datos identificadores provienen de una fuente pública identificable.
+2. Los campos que la fuente no proporciona se dejan vacíos; el servidor no los completa por inferencia.
+3. `buscar_por_cita` exige coincidencia exacta de la cita y **no sustituye una cita inexistente por una parecida**.
+4. Si una autoridad no puede verificarse, el servidor devuelve `encontrado: false` y no genera una alternativa plausible.
+5. El texto de una decisión se identifica como extracción de la fuente; nunca se presenta texto generado por un modelo como una cita textual.
+6. Los enlaces a la fuente se conservan para que el abogado pueda verificar la autoridad original.
+
+Esta garantía es deliberadamente más importante que producir una respuesta. **Es preferible devolver “no encontrado” que una autoridad jurídica falsa.**
+
 ## Fuentes
 
-- **Poder Judicial de Puerto Rico — Tribunal Supremo:** índice oficial de decisiones, con páginas por año desde 1998 y metadatos como TSPR, número de caso, partes, fecha, ponente y materia.
-- **LexJuris:** portal jurídico de Puerto Rico, utilizado como fuente complementaria para localizar jurisprudencia y documentos cuando estén públicamente accesibles.
+- **Poder Judicial de Puerto Rico — Tribunal Supremo:** fuente oficial de decisiones del Tribunal Supremo.
+- **LexJuris:** fuente complementaria para localizar jurisprudencia y documentos cuando estén públicamente accesibles.
 
-> El servidor no pretende sustituir la consulta de la fuente oficial. Los resultados incluyen la fuente y URL cuando están disponibles para facilitar la verificación.
+> LexJuris no se trata como sustituto de la publicación oficial. Cuando exista una fuente oficial verificable, esta debe preferirse.
 
 ## Herramientas MCP
 
-- `buscar_sentencias`: búsqueda por palabras/frases, con filtros de año y máximo de resultados.
-- `buscar_por_cita`: localiza una decisión por cita TSPR o número de caso.
-- `leer_sentencia`: recupera y extrae el texto de una decisión pública a partir de su URL.
-- `opciones_busqueda`: devuelve años disponibles y orientación sobre las fuentes.
-- `estado`: diagnóstico del servidor y fuentes configuradas.
+- `buscar_sentencias`: búsqueda por palabras/frases, año y máximo de resultados. No completa metadatos ausentes.
+- `buscar_por_cita`: búsqueda **exacta y verificable** por cita TSPR.
+- `leer_sentencia`: extrae texto de una URL pública permitida y conserva su procedencia.
+- `opciones_busqueda`: fuentes, filtros y reglas de integridad.
+- `estado`: diagnóstico y garantías de integridad de citas.
 
 ## Instalación
 
@@ -25,17 +40,11 @@ Requiere Python 3.10+.
 
 ```bash
 python -m venv .venv
-# macOS/Linux
 source .venv/bin/activate
-# Windows PowerShell
-# .venv\\Scripts\\Activate.ps1
-
 pip install -e .
 ```
 
 ### Claude Desktop / Cowork
-
-Ejemplo de configuración:
 
 ```json
 {
@@ -48,33 +57,39 @@ Ejemplo de configuración:
 }
 ```
 
-En Windows usa `python.exe` dentro de `.venv\\Scripts\\`.
-
 ## Ejemplos
 
 > “Busca sentencias del Tribunal Supremo de Puerto Rico sobre daños punitivos entre 2018 y 2025.”
 
-> “Busca la cita 2024 TSPR 140 y dime el número del caso, las partes, fecha y materia.”
+> “Verifica si existe 2024 TSPR 140.”
 
-> “Encuentra decisiones sobre cláusulas de arbitraje y dame los enlaces a la fuente oficial.”
+> “Si 2024 TSPR 140 existe, dame solamente los datos que aparezcan en la fuente.”
 
-> “Lee la sentencia de esta URL y extrae los pasajes relevantes sobre jurisdicción.”
+> “Si no encuentras 2024 TSPR 999, no inventes ni sustituyas la cita.”
 
-## Diseño
+## Arquitectura de confianza
 
-El código separa la obtención de datos de las herramientas MCP. Esto permite añadir posteriormente adaptadores para Tribunal de Apelaciones, Tribunal Federal para el Distrito de Puerto Rico u otras fuentes sin cambiar la interfaz MCP.
+La arquitectura sigue esta secuencia:
 
-El servidor usa peticiones HTTP estándar, caché en memoria de corta duración y límites conservadores para evitar consultas innecesarias a sitios públicos.
+**FUENTE → EXTRACCIÓN → VALIDACIÓN → MCP**
 
-## Uso responsable
+No se utiliza el LLM como fuente de autoridad jurídica. Un modelo puede, en una capa posterior, resumir o clasificar documentos que ya fueron recuperados y verificados, pero no puede crear la autoridad ni rellenar sus datos faltantes.
 
-Utiliza el servidor para investigación jurídica legítima y respetuosa con las condiciones de cada fuente. No intenta eludir CAPTCHA, controles anti-bot, autenticación, paywalls ni límites de acceso. Si una fuente no permite acceso automatizado, el servidor devuelve el enlace para consulta manual.
+Los resultados incluyen campos de procedencia como `source`, `url`, `verified` y `verification_status`.
 
-Los resultados deben verificarse en la fuente original antes de utilizarlos en escritos, opiniones legales o decisiones profesionales.
+## Seguridad y acceso
+
+El servidor no intenta eludir CAPTCHA, controles anti-bot, autenticación, paywalls ni límites de acceso. Si una fuente no permite acceso automatizado, se debe utilizar el enlace para consulta manual.
 
 ## Privacidad
 
-No se incluyen credenciales en el repositorio. Las consultas se envían a las fuentes necesarias para obtener resultados. No se almacenan expedientes ni documentos del usuario por defecto.
+No se incluyen credenciales en el repositorio. No se almacenan expedientes, consultas ni documentos del usuario por defecto.
+
+**Recomendación para uso jurídico:** las consultas deben estar anonimizadas y no deben incluir información confidencial del cliente cuando no sea necesaria para localizar jurisprudencia.
+
+## Uso profesional
+
+El MCP es una herramienta de investigación, no un sustituto de la revisión jurídica. Antes de citar una autoridad en un escrito u opinión, debe verificarse el documento original y su vigencia/aplicabilidad.
 
 ## Licencia
 
