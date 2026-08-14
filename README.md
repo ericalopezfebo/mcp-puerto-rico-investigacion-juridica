@@ -1,73 +1,75 @@
 # VELUM — MCP local para documentos legales 🇵🇷
 
-**VELUM** es un servidor MCP **local-first** para trabajar con documentos legales sensibles desde aplicaciones de IA compatibles con MCP.
+**VELUM** es un servidor MCP **local-first** para abogados y profesionales que necesitan preparar documentos jurídicos sensibles antes de utilizar una IA.
 
-Su diseño principal es simple:
+## La idea central
 
 ```text
-Documento legal en tu Mac/PC
+Documento legal original
         │
         ▼
-   VELUM local
+   VELUM en tu equipo
         │
         ├── extracción local
-        ├── huella SHA-256 local
-        └── anonimización/redacción local
+        ├── redacción determinística
+        ├── reglas personalizadas
+        └── copia sanitizada local
                 │
                 ▼
-        texto sanitizado
+       revisión humana
                 │
                 ▼
-       ChatGPT / Claude / otra IA
+       IA externa, si el usuario decide compartir
 ```
 
-## Qué protege
+### Qué significa "local"
 
-El documento original permanece en el dispositivo. Las herramientas de privacidad de VELUM:
+Las funciones de privacidad de VELUM procesan el archivo **en la computadora donde se ejecuta el MCP**. No necesitan una cuenta de VELUM, una base de datos remota ni un servidor VELUM para anonimizar el documento.
 
-- no suben archivos a VELUM ni a un servidor propio;
-- no abren un puerto de red;
-- funcionan mediante **MCP stdio**;
-- no hacen llamadas HTTP para procesar documentos locales;
-- permiten extraer texto de PDF, DOCX, TXT, Markdown y HTML localmente;
-- pueden sustituir automáticamente identificadores comunes (email, teléfono, SSN, tarjeta y fecha de nacimiento etiquetada);
-- permiten especificar redacciones adicionales, por ejemplo `{"Jane Doe":"[CLIENTE]"}`;
-- pueden crear una copia anonimizada local;
-- pueden generar un SHA-256 del archivo sin devolver su contenido.
+- El archivo original se lee desde `VELUM_DOCUMENT_ROOT`.
+- Las herramientas de privacidad no hacen llamadas HTTP para procesar documentos.
+- VELUM usa MCP **stdio**; no abre un puerto HTTP para el servidor local.
+- El original no se modifica.
+- La copia anonimizada se crea dentro del directorio local permitido.
+- La huella SHA-256 se calcula localmente sin devolver el contenido.
+- La ruta de un documento se valida para impedir acceso fuera del directorio autorizado.
 
-### La regla de privacidad más importante
+### Límite importante de privacidad
 
-**VELUM no puede impedir que una IA externa reciba los datos que el usuario decida devolverle.**
+VELUM protege el **documento original durante el procesamiento local**. No puede controlar lo que un usuario posteriormente envíe a un proveedor de IA.
 
-Por eso el flujo recomendado para un documento confidencial es:
+Si una herramienta devuelve texto a ChatGPT, Claude u otra IA, **ese texto sale del equipo y llega al proveedor de IA**. Por eso el flujo recomendado para material confidencial es:
 
-1. El archivo se queda en tu equipo.
-2. VELUM lo procesa localmente.
-3. VELUM devuelve únicamente el texto sanitizado.
-4. El usuario revisa el resultado.
-5. Solo entonces ese texto sanitizado puede enviarse a ChatGPT, Claude u otra IA.
+1. Mantener el original dentro de `VELUM_DOCUMENT_ROOT`.
+2. Procesarlo con VELUM localmente.
+3. Generar texto o una copia sanitizada.
+4. Revisar manualmente la sanitización.
+5. Compartir únicamente el contenido que el abogado autorice.
 
-No debe afirmarse que el contenido está "100% privado" frente al proveedor de IA si el texto se envía a ese proveedor. **La garantía de VELUM es que el archivo original no se envía a un servidor de VELUM y que la sanitización ocurre antes de compartir contenido con una IA externa.**
+**VELUM no garantiza que toda información personal, confidencial o privilegiada sea detectada automáticamente. La revisión humana sigue siendo necesaria.**
 
-## Importante sobre ChatGPT y Claude
+## No usamos un LLM para anonimizar
 
-Los servidores MCP locales usan normalmente **stdio**: la aplicación de IA ejecuta VELUM como un proceso local en la misma computadora. El SDK oficial de MCP documenta este patrón como el modelo de despliegue local.
+La anonimización básica es **determinística**, mediante reglas locales. Actualmente contempla, entre otros:
 
-Claude Desktop admite servidores MCP locales y también permite empaquetarlos como extensiones `.mcpb`.
+- correo electrónico;
+- teléfonos con formato estadounidense/PR;
+- SSN;
+- números de tarjeta;
+- fechas identificadas explícitamente como fecha de nacimiento;
+- redacciones personalizadas definidas por el usuario.
 
-**ChatGPT es diferente:** actualmente ChatGPT no se conecta directamente a un MCP que solo corre localmente. OpenAI documenta el uso de servidores MCP remotos o de Secure MCP Tunnel para conectar un servidor que permanece local sin exponerlo públicamente.
+Ejemplo:
 
-Por eso hay dos escenarios:
+```json
+{
+  "Jane Doe": "[CLIENTE]",
+  "Acme Holdings LLC": "[EMPRESA]",
+  "787-555-9876": "[TELEFONO_CLIENTE]"
+}
+```
 
-### Claude Desktop / clientes con MCP local
-
-VELUM puede ejecutarse completamente local mediante stdio. El cliente inicia el proceso en tu computadora.
-
-### ChatGPT
-
-Para que ChatGPT pueda usar un MCP local hay que utilizar el mecanismo de conexión que admita el producto, actualmente Secure MCP Tunnel para este caso. **Eso no convierte el documento original en un documento remoto:** el servidor y el archivo pueden permanecer en tu máquina, pero cualquier texto que VELUM devuelva a ChatGPT será recibido por ChatGPT.
-
-Para documentos confidenciales, el flujo recomendado sigue siendo **anonimizar primero y enviar después**.
+Esto **no es una garantía de anonimización completa**. Nombres, direcciones, hechos, relaciones familiares, números de caso y combinaciones de hechos pueden requerir reglas adicionales y revisión profesional.
 
 ## Instalación
 
@@ -80,35 +82,26 @@ cd mcp-puerto-rico-sentencias
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -e ".[test]"
-```
 
-Crea el directorio protegido de documentos:
-
-```bash
 mkdir -p ~/Documents/VELUM
-```
-
-Puedes cambiarlo:
-
-```bash
 export VELUM_DOCUMENT_ROOT="$HOME/Documents/VELUM"
 ```
 
-## Ejecutar el MCP local
+## Ejecutar VELUM
 
-El comando principal es:
+El servidor local se inicia con:
 
 ```bash
 velum
 ```
 
-También puedes ejecutar directamente:
+También funciona:
 
 ```bash
 python3 velum.py
 ```
 
-**No esperes que aparezca un mensaje en pantalla.** Un servidor MCP stdio queda esperando mensajes del cliente. No abre un puerto y no termina hasta que el cliente lo cierre.
+Un servidor MCP por `stdio` normalmente **no muestra un menú ni abre una ventana**: queda esperando mensajes del cliente MCP. Esto es comportamiento esperado.
 
 Para detenerlo manualmente:
 
@@ -116,53 +109,29 @@ Para detenerlo manualmente:
 Ctrl+C
 ```
 
-## Herramientas de privacidad local
+## Herramientas de privacidad
 
 ### `listar_documentos_locales`
 
-Lista nombres y metadatos de documentos permitidos dentro de `VELUM_DOCUMENT_ROOT` sin devolver su contenido.
+Lista nombres y metadatos de archivos permitidos sin devolver su contenido.
 
 ### `huella_documento_local`
 
-Calcula SHA-256 localmente. Es útil para demostrar que un archivo cambió sin enviar el archivo.
+Calcula SHA-256 localmente.
 
 ### `preparar_documento_para_ia`
 
-Lee el archivo localmente, extrae su texto y aplica redacciones determinísticas. Devuelve **solo el resultado sanitizado**.
-
-Ejemplo de redacciones adicionales:
-
-```json
-{
-  "Jane Doe": "[CLIENTE]",
-  "Acme Holdings LLC": "[EMPRESA]",
-  "787-555-9876": "[TELEFONO_CLIENTE]"
-}
-```
+Lee el documento local, extrae su texto y aplica las redacciones determinísticas. Devuelve **solo el texto sanitizado**; el original no se devuelve como resultado de la herramienta.
 
 ### `crear_copia_anonimizada`
 
-Crea una copia `.anonimizado.txt` dentro del directorio local permitido. El original no se modifica.
+Crea una copia `.anonimizado.txt` dentro del directorio local permitido. El archivo original no se modifica.
 
 ### `estado_privacidad`
 
-Muestra las garantías técnicas del modo local y deja explícito qué ocurre cuando el texto sanitizado se entrega a una IA externa.
+Expone el límite técnico de privacidad y deja claro qué ocurre si el resultado se entrega a una IA externa.
 
-## Herramientas de jurisprudencia de Puerto Rico
-
-El mismo MCP también conserva la investigación de jurisprudencia de Puerto Rico:
-
-- `buscar_sentencias`
-- `buscar_por_cita`
-- `leer_sentencia`
-- `opciones_busqueda`
-- `estado`
-
-Estas herramientas consultan fuentes públicas judiciales y LexJuris. **Solo esa parte necesita Internet para buscar decisiones públicas.** Las herramientas de privacidad local no usan esas llamadas de red.
-
-La política jurídica sigue siendo **source-first / zero citation hallucination**: no se deben inventar casos, citas, nombres, fechas, holdings ni citas textuales.
-
-## Tipos de documentos
+## Formatos locales
 
 - PDF
 - DOCX
@@ -174,54 +143,74 @@ Límite predeterminado: **25 MB por archivo**.
 
 ## Seguridad del sistema de archivos
 
-VELUM no permite que las herramientas locales lean cualquier ruta arbitraria del sistema.
-
-Por defecto solo acepta archivos dentro de:
+Por defecto VELUM permite documentos solamente dentro de:
 
 ```text
 ~/Documents/VELUM
 ```
 
-También puede configurarse mediante `VELUM_DOCUMENT_ROOT`.
+Puedes cambiarlo con:
 
-Esto evita que una llamada de herramienta pueda intentar leer, por ejemplo, `/Users/.../.ssh`, `/etc/passwd` u otros archivos fuera del directorio autorizado.
+```bash
+export VELUM_DOCUMENT_ROOT="$HOME/Documents/VELUM"
+```
+
+Una herramienta no puede utilizar una ruta fuera de ese directorio. Esto reduce el riesgo de que una llamada MCP intente acceder a archivos como claves SSH, credenciales u otros archivos personales.
+
+## Jurisprudencia de Puerto Rico
+
+VELUM también incluye herramientas para investigación de jurisprudencia pública:
+
+- `buscar_sentencias`
+- `buscar_por_cita`
+- `leer_sentencia`
+- `opciones_busqueda`
+- `estado`
+
+Estas funciones son diferentes de las funciones de privacidad: **sí necesitan Internet para consultar las fuentes públicas configuradas**. La privacidad local de documentos no depende de esas consultas.
+
+La regla de investigación es **source-first / zero citation hallucination**: el servidor no debe inventar casos, citas, nombres, fechas, holdings ni citas textuales.
+
+## Clientes de IA
+
+### Clientes que admiten MCP local por stdio
+
+Un cliente compatible puede iniciar `velum` como proceso local. `examples/` contiene una configuración de referencia para clientes que aceptan el formato de configuración indicado.
+
+### ChatGPT
+
+La disponibilidad y el mecanismo de conexión de MCP dependen del producto de ChatGPT y de su configuración. Un MCP que solo corre por `stdio` en la computadora del usuario no debe describirse como "conectado directamente a ChatGPT" sin una capa de conexión compatible.
+
+**La arquitectura de privacidad de VELUM no depende de un servidor VELUM remoto.** Si se utiliza un mecanismo externo para conectar el MCP con una IA, el usuario debe revisar qué datos devuelve cada herramienta y qué recibe el proveedor de IA.
 
 ## Qué NO hace VELUM
 
-- No envía documentos a un servidor propio.
+- No sube el documento original a un servidor VELUM.
 - No guarda expedientes en una base de datos remota.
-- No usa una API de OpenAI, Anthropic u otro proveedor para anonimizar documentos.
-- No usa un LLM para decidir qué texto debe ocultar.
-- No promete detectar todos los datos personales automáticamente.
+- No utiliza OpenAI, Anthropic u otro LLM para decidir qué texto ocultar.
 - No modifica el archivo original.
+- No promete detectar todos los datos personales o confidenciales.
+- No convierte por sí solo un documento en "privilegiado" ni determina obligaciones éticas.
 
-La anonimización automática es **determinística y limitada**. En documentos jurídicos reales puede haber nombres, direcciones, identificadores, hechos sensibles o combinaciones de datos que requieran revisión humana y/o reglas personalizadas.
+## Para uso jurídico
 
-## Integridad jurídica
+VELUM es una herramienta técnica de privacidad y preparación documental. **No sustituye el juicio profesional del abogado.** Antes de compartir material de un cliente con una IA, el abogado debe evaluar las obligaciones aplicables de confidencialidad, competencia, supervisión, seguridad de la información, consentimiento cuando corresponda y las reglas profesionales de su jurisdicción y organización.
 
-Este proyecto no sustituye la revisión profesional de una autoridad jurídica. Antes de utilizar una sentencia en un escrito, debe verificarse el documento original, la cita, su contenido y su vigencia/aplicabilidad.
+Para jurisprudencia, verifica siempre la fuente primaria y la vigencia/aplicabilidad de la autoridad antes de utilizarla en un escrito.
 
 ## Pruebas
-
-Ejecuta:
 
 ```bash
 pytest -q
 ```
 
-Las pruebas cubren tanto la integridad de citas como las garantías básicas de privacidad local, incluyendo:
+Las pruebas cubren, entre otras cosas:
 
 - redacción de identificadores comunes;
 - redacciones personalizadas;
-- prohibición de devolver el original desde la herramienta de preparación;
+- ausencia del original en el resultado sanitizado;
 - rechazo de rutas fuera de `VELUM_DOCUMENT_ROOT`.
-
-## Distribución local
-
-El proyecto puede distribuirse como código fuente desde GitHub. El ecosistema MCP también dispone del formato **MCP Bundle (`.mcpb`)** para empaquetar servidores locales con un manifiesto y facilitar instalaciones de un clic en clientes compatibles.
-
-La siguiente evolución natural de este repositorio es publicar un `.mcpb` para VELUM, especialmente para Claude Desktop.
 
 ## Licencia
 
-El código original está disponible bajo la **MIT License**. La licencia del software no concede derechos sobre sentencias, sitios web, marcas, bases de datos u otros contenidos de terceros.
+El código original está disponible bajo **MIT License**. La licencia del software no concede derechos sobre sentencias, sitios web, marcas, bases de datos u otros contenidos de terceros.
