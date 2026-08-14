@@ -1,17 +1,17 @@
 """MCP server for public Puerto Rico jurisprudence sources.
 
-Citation-integrity is a hard requirement: this server never fabricates legal
-authorities. A decision is returned as verified only when its identifying data
-comes from a configured public source. The model may summarize verified text,
-but it is never the source of a citation, party name, date, judge, case number,
-or quotation.
+Core rule: source-first / zero citation hallucination. This server never
+fabricates cases, citations, party names, judges, dates, docket numbers,
+holdings, or quotations. Missing facts remain missing.
 
-The implementation intentionally avoids bypassing CAPTCHAs, authentication,
-rate limits, or other access controls.
+The server may extract and rank information that is actually present in a
+public source, but the language model is never treated as the source of legal
+authority.
 """
 
 from __future__ import annotations
 
+import io
 import re
 from dataclasses import dataclass, asdict
 from typing import Any
@@ -20,13 +20,16 @@ from urllib.parse import urljoin
 import httpx
 from bs4 import BeautifulSoup
 from mcp.server.fastmcp import FastMCP
+from pypdf import PdfReader
 
 mcp = FastMCP("puerto-rico-sentencias")
 
 OFFICIAL_INDEX = "https://poderjudicial.pr/tribunal-supremo/decisiones-del-tribunal-supremo/"
 LEXJURIS_SEARCH = "https://www.lexjuris.com/lexbusquedas.htm"
+ALLOWED_HOSTS = ("poderjudicial.pr", "www.poderjudicial.pr", "lexjuris.com", "www.lexjuris.com")
 TIMEOUT = 20.0
 MAX_RESULTS = 50
+MAX_DOCUMENT_CHARS = 50000
 
 
 @dataclass
@@ -58,11 +61,11 @@ def extract_citation(text: str) -> str:
 
 
 def extract_case_number(text: str) -> str:
-    # Only recognize conservative Puerto Rico Supreme Court docket formats.
-    patterns = [
+    # Conservative patterns only. If a format is not recognized, return empty.
+    patterns = (
         r"\b([A-Z]{1,5}-\d{2,5}-\d{1,6})\b",
         r"\b([A-Z]{1,5}\s+\d{2,5}-\d{1,6})\b",
-    ]
+    )
     for pattern in patterns:
         match = re.search(pattern, text or "", re.I)
         if match:
@@ -70,50 +73,74 @@ def extract_case_number(text: str) -> str:
     return ""
 
 
-async def fetch(url: str) -> str:
+def source_name(url: str) -> str:
+    return "LexJuris" if "lexjuris.com" in url.lower() else "Poder Judicial de Puerto Rico"
+
+
+def allowed_url(url: str) -> bool:
+    try:
+        from urllib.parse import urlparse
+        parsed = urlparse(url)
+        return parsed.scheme == "https" and parsed.hostname in ALLOWED_HOSTS
+    except Exception:
+        return False
+
+
+async def fetch_response(url: str) -> httpx.Response:
     headers = {
-        "User-Agent": "mcp-puerto-rico-sentencias/0.2 (research client)",
-        "Accept": "text/html,application/xhtml+xml",
+        "User-Agent": "mcp-puerto-rico-sentencias/0.3 (legal-research client)",
+        "Accept": "text/html,application/xhtml+xml,application/pdf;q=0.9,*/*;q=0.5",
     }
     async with httpx.AsyncClient(timeout=TIMEOUT, follow_redirects=True, headers=headers) as client:
         response = await client.get(url)
         response.raise_for_status()
-        return response.text
+        return response
+
+
+async def fetch_text(url: str) -> str:
+    response = await fetch_response(url)
+    return response.text
 
 
 def parse_index(html: str, base: str, year: int | None = None) -> list[Decision]:
-    """Extract only facts actually present in the source page.
-
-    Missing metadata remains empty. Nothing is inferred from the title or by
-    asking a language model to fill gaps.
-    """
+    """Extract facts visible in an index page; never infer missing metadata."""
     soup = BeautifulSoup(html, "html.parser")
     results: list[Decision] = []
+
     for a in soup.find_all("a", href=True):
         text = clean(a.get_text(" ", strip=True))
         href = urljoin(base, a["href"])
         haystack = f"{text} {href}"
         citation = extract_citation(haystack)
-        if not citation and not any(token in haystack.upper() for token in ("PDF", "TSPR", "SENTENCIA", "OPINION")):
+        href_lower = href.lower()
+
+        looks_like_decision = bool(
+            citation
+            or href_lower.endswith(".pdf")
+            or any(token in haystack.upper() for token in ("SENTENCIA", "OPINIÓN", "OPINION", "TSPR"))
+        )
+        if not looks_like_decision:
             continue
+
         citation_year = int(re.search(r"\d{4}", citation).group(0)) if citation else None
         if year is not None and citation_year is not None and citation_year != year:
             continue
-        # A URL alone is not enough to claim that a legal authority exists.
-        # The result is marked verified only when it has a source URL and a
-        # source-visible identifier such as a TSPR citation.
+
+        # A source URL plus an explicit TSPR citation is enough to verify the
+        # citation identifier. Other metadata is never guessed.
         verified = bool(href and citation)
         results.append(
             Decision(
-                title=text or "",
+                title=text,
                 url=href,
-                source="Poder Judicial de Puerto Rico",
+                source=source_name(href),
                 citation=citation,
                 case_number=extract_case_number(haystack),
                 verified=verified,
-                verification_status="verified_source" if verified else "identifier_not_confirmed",
+                verification_status="verified_source_identifier" if verified else "source_found_identifier_unconfirmed",
             )
         )
+
     seen: set[str] = set()
     unique: list[Decision] = []
     for result in results:
@@ -124,26 +151,24 @@ def parse_index(html: str, base: str, year: int | None = None) -> list[Decision]
 
 
 async def official_search(query: str, year: int | None, limit: int) -> list[Decision]:
-    html = await fetch(OFFICIAL_INDEX)
+    html = await fetch_text(OFFICIAL_INDEX)
     candidates = parse_index(html, OFFICIAL_INDEX, year)
     terms = [t.lower() for t in re.findall(r"[\wÀ-ÿ]+", query) if len(t) > 2]
-    if terms:
-        scored: list[tuple[int, Decision]] = []
-        for item in candidates:
-            blob = f"{item.title} {item.citation} {item.case_number} {item.subject}".lower()
-            score = sum(1 for term in terms if term in blob)
-            if score:
-                scored.append((score, item))
-        candidates = [item for _, item in sorted(scored, key=lambda pair: -pair[0])]
-    return candidates[:limit]
+    if not terms:
+        return candidates[:limit]
+
+    scored: list[tuple[int, Decision]] = []
+    for item in candidates:
+        blob = f"{item.title} {item.citation} {item.case_number} {item.subject}".lower()
+        score = sum(1 for term in terms if term in blob)
+        if score:
+            scored.append((score, item))
+
+    return [item for _, item in sorted(scored, key=lambda pair: -pair[0])[:limit]]
 
 
 async def citation_search(citation: str) -> list[Decision]:
-    """Return only exact, source-verified citation matches.
-
-    Critically, this function does NOT fall back to approximate results. An
-    absent citation means an empty result, never a plausible substitute.
-    """
+    """Return exact citation matches only; never approximate or substitute."""
     requested = normalize_citation(citation)
     if not requested:
         return []
@@ -157,12 +182,63 @@ async def citation_search(citation: str) -> list[Decision]:
     ]
 
 
+def extract_html_document(html: str) -> tuple[str, list[str]]:
+    soup = BeautifulSoup(html, "html.parser")
+    for tag in soup(["script", "style", "noscript", "nav", "footer"]):
+        tag.decompose()
+
+    blocks: list[str] = []
+    for tag in soup.find_all(["p", "blockquote", "li"]):
+        value = clean(tag.get_text(" ", strip=True))
+        if value and len(value) >= 20:
+            blocks.append(value)
+
+    if blocks:
+        return "\n\n".join(blocks), blocks
+    text = clean(soup.get_text(" ", strip=True))
+    return text, [text] if text else []
+
+
+def extract_pdf_document(content: bytes) -> tuple[str, list[str]]:
+    reader = PdfReader(io.BytesIO(content))
+    page_blocks: list[str] = []
+    paragraphs: list[str] = []
+
+    for page_number, page in enumerate(reader.pages, start=1):
+        page_text = page.extract_text() or ""
+        page_text = page_text.replace("\r", "\n")
+        raw_blocks = re.split(r"\n\s*\n+", page_text)
+        page_paragraphs = [clean(block) for block in raw_blocks if clean(block)]
+        for block in page_paragraphs:
+            paragraphs.append(f"[página {page_number}] {block}")
+        if page_paragraphs:
+            page_blocks.append("\n\n".join(page_paragraphs))
+
+    return "\n\n".join(page_blocks), paragraphs
+
+
+def find_relevant_paragraphs(paragraphs: list[str], terms: str, limit: int = 8) -> list[dict[str, Any]]:
+    terms_list = [t.lower() for t in re.findall(r"[\wÀ-ÿ]+", terms) if len(t) > 2]
+    if not terms_list:
+        return [{"numero": i + 1, "texto": p} for i, p in enumerate(paragraphs[:limit])]
+
+    scored: list[tuple[int, int, str]] = []
+    for index, paragraph in enumerate(paragraphs):
+        low = paragraph.lower()
+        score = sum(1 for term in terms_list if term in low)
+        if score:
+            scored.append((score, index, paragraph))
+
+    scored.sort(key=lambda item: (-item[0], item[1]))
+    return [
+        {"numero": index + 1, "texto": paragraph, "coincidencias": score}
+        for score, index, paragraph in scored[:limit]
+    ]
+
+
 @mcp.tool()
 async def buscar_sentencias(consulta: str, ano: int | None = None, maximo: int = 20) -> dict[str, Any]:
-    """Busca decisiones públicas y devuelve únicamente datos provenientes de la fuente.
-
-    No completa nombres, citas, fechas, jueces o números de caso que falten.
-    """
+    """Busca decisiones públicas sin completar datos que la fuente no contiene."""
     maximo = max(1, min(maximo, MAX_RESULTS))
     try:
         results = await official_search(consulta, ano, maximo)
@@ -215,44 +291,58 @@ async def buscar_por_cita(cita: str) -> dict[str, Any]:
 
 
 @mcp.tool()
-async def leer_sentencia(url: str, terminos: str = "", max_chars: int = 12000) -> dict[str, Any]:
-    """Lee texto público y conserva la procedencia de la URL.
+async def leer_sentencia(url: str, terminos: str = "", max_parrafos: int = 8) -> dict[str, Any]:
+    """Lee una sentencia/documento público y devuelve pasajes extraídos de la fuente.
 
-    No afirma que el texto sea una sentencia ni inventa metadatos. El texto
-    devuelto se identifica como extracción de la página proporcionada.
+    Los pasajes no son generados por el modelo. En PDF se conserva el número de
+    página cuando puede obtenerse mediante extracción de texto. Si el documento
+    no es accesible o no contiene texto extraíble, se informa el fallo.
     """
-    allowed = ("https://poderjudicial.pr/", "https://www.lexjuris.com/")
-    if not url.startswith(allowed):
-        return {"error": "Por seguridad, solo se permiten URLs de las fuentes públicas configuradas."}
+    if not allowed_url(url):
+        return {"error": "Por seguridad, solo se permiten URLs HTTPS de las fuentes públicas configuradas.", "verificado": False}
+
     try:
-        html = await fetch(url)
-        soup = BeautifulSoup(html, "html.parser")
-        for tag in soup(["script", "style", "noscript"]):
-            tag.decompose()
-        text = clean(soup.get_text(" ", strip=True))
-        original_length = len(text)
-        if terminos:
-            terms = [t.lower() for t in re.findall(r"[\wÀ-ÿ]+", terminos) if len(t) > 2]
-            snippets: list[str] = []
-            low = text.lower()
-            for term in terms:
-                start = low.find(term)
-                if start >= 0:
-                    snippets.append(text[max(0, start - 500): start + 1500])
-            if snippets:
-                text = "\n\n---\n\n".join(snippets)
-        limit = max(1000, min(max_chars, 50000))
+        response = await fetch_response(url)
+        content_type = response.headers.get("content-type", "").lower()
+        is_pdf = "application/pdf" in content_type or url.lower().split("?", 1)[0].endswith(".pdf")
+
+        if is_pdf:
+            text, paragraphs = extract_pdf_document(response.content)
+            document_type = "PDF"
+        else:
+            text, paragraphs = extract_html_document(response.text)
+            document_type = "HTML"
+
+        if not text:
+            return {
+                "url": url,
+                "verificado": False,
+                "error": "La fuente respondió, pero no contiene texto extraíble. No se generará contenido sustitutivo.",
+            }
+
+        try:
+            max_parrafos = max(1, min(int(max_parrafos), 30))
+        except (TypeError, ValueError):
+            max_parrafos = 8
+
+        relevantes = find_relevant_paragraphs(paragraphs, terminos, max_parrafos)
+        citation = extract_citation(text)
+        case_number = extract_case_number(text)
+
         return {
             "url": url,
-            "texto": text[:limit],
-            "truncado": len(text) > limit,
-            "longitud_original": original_length,
-            "procedencia": "texto extraído directamente de la URL proporcionada; no generado por el modelo",
+            "fuente": source_name(url),
+            "tipo_documento": document_type,
+            "cita_tspr": citation,
+            "numero_caso": case_number,
+            "parrafos": relevantes,
+            "total_parrafos_extraidos": len(paragraphs),
+            "procedencia": "Texto extraído directamente del documento fuente; no generado por el modelo.",
             "verificado": True,
         }
     except Exception as exc:
         return {
-            "error": "No fue posible leer el documento; no se hará ninguna inferencia sobre su contenido.",
+            "error": "No fue posible leer o extraer el documento; no se hará ninguna inferencia sobre su contenido.",
             "detalle_tecnico": str(exc),
             "url": url,
             "verificado": False,
@@ -273,10 +363,10 @@ def opciones_busqueda(consulta: str = "", campo: str = "fuentes") -> dict[str, A
 
 @mcp.tool()
 def estado() -> dict[str, Any]:
-    """Devuelve información de diagnóstico y las garantías de integridad."""
+    """Devuelve diagnóstico y garantías de integridad."""
     return {
         "servidor": "puerto-rico-sentencias",
-        "version": "0.2.0",
+        "version": "0.3.0",
         "fuentes": [OFFICIAL_INDEX, LEXJURIS_SEARCH],
         "citation_integrity": {
             "no_casos_inventados": True,
@@ -284,8 +374,10 @@ def estado() -> dict[str, Any]:
             "no_nombres_inventados": True,
             "no_fechas_o_ponentes_inferidos": True,
             "no_citas_aproximadas_en_buscar_por_cita": True,
+            "no_citas_textuales_generadas": True,
             "source_required": True,
         },
+        "documentos": {"pdf": True, "html": True, "pasajes_con_procedencia": True},
         "privacidad": "No se almacenan consultas ni documentos por defecto.",
         "anti_bot": "No se eluden CAPTCHA, autenticación ni controles de acceso.",
     }
