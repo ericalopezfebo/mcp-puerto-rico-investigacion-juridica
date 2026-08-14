@@ -1,20 +1,42 @@
 # MCP Puerto Rico Sentencias 🇵🇷
 
-## Busca y lee sentencias de Puerto Rico directamente desde Claude
+## Busca y lee sentencias de Puerto Rico desde Claude, ChatGPT y otros clientes MCP
 
-**MCP Puerto Rico Sentencias** permite a **Claude Desktop / Cowork** buscar, localizar y leer sentencias de Puerto Rico directamente desde fuentes públicas. Está diseñado para investigación jurídica rápida y verificable: encuentra los precedentes más relevantes disponibles para una cuestión, recupera el documento y permite extraer **pasajes del texto fuente**, junto con su **número de caso, cita y fuente**, cuando esos datos aparecen en el documento.
+**MCP Puerto Rico Sentencias** permite a **Claude Desktop / Cowork, ChatGPT y otros clientes compatibles con MCP** buscar, localizar y leer sentencias de Puerto Rico directamente desde fuentes públicas. Está diseñado para investigación jurídica rápida y verificable: encuentra los precedentes más relevantes disponibles para una cuestión, recupera el documento y permite extraer **pasajes del texto fuente**, junto con su **número de caso, cita y fuente**, cuando esos datos aparecen en el documento.
 
 ### Descripción
 
-Un servidor MCP enfocado en jurisprudencia de Puerto Rico. Convierte fuentes públicas de decisiones judiciales en herramientas que Claude puede consultar en lenguaje natural, reduciendo el tiempo necesario para localizar precedentes y revisar el texto de las opiniones.
+Un servidor MCP enfocado en jurisprudencia de Puerto Rico. Convierte fuentes públicas de decisiones judiciales en herramientas que los asistentes compatibles con MCP pueden consultar en lenguaje natural, reduciendo el tiempo necesario para localizar precedentes y revisar el texto de las opiniones.
 
 El objetivo es combinar **velocidad + precisión + trazabilidad**: encontrar rápidamente candidatos relevantes, leer sus documentos y devolver pasajes verificables sin inventar autoridades ni completar datos que no estén en la fuente.
 
 > **No inventa jurisprudencia.** Si una sentencia, cita, nombre, número de caso o dato jurídico no puede verificarse en una fuente identificable, el MCP lo marca como no verificado o informa que no fue encontrado.
 
+## Claude + ChatGPT
+
+El proyecto ofrece **un mismo conjunto de herramientas y reglas de integridad** para distintos clientes MCP:
+
+- **Claude Desktop / Cowork:** ejecución local mediante `stdio`.
+- **ChatGPT:** ejecución remota mediante **Streamable HTTP** sobre HTTPS.
+- **Otros clientes MCP:** pueden utilizar el transporte que soporte el cliente.
+
+El código de búsqueda, extracción y verificación es compartido. El cliente —Claude, ChatGPT u otro— **no es la fuente de la autoridad jurídica**.
+
+### ChatGPT: MCP remoto
+
+ChatGPT no se conecta directamente a un servidor MCP que solo esté ejecutándose en el ordenador local. Para usar este proyecto desde ChatGPT, el servidor debe estar desplegado en una URL **HTTPS** accesible y exponer el endpoint MCP:
+
+```text
+https://TU-DOMINIO/mcp
+```
+
+El repositorio incluye `remote_server.py`, `Dockerfile` y `render.yaml` para facilitar ese despliegue. El transporte utilizado es **Streamable HTTP**, el transporte HTTP actual del SDK de MCP.
+
+Después del despliegue, la URL `/mcp` puede utilizarse al crear/configurar una app MCP personalizada en ChatGPT, sujeto a la disponibilidad y permisos del plan o espacio de trabajo de ChatGPT.
+
 ## Qué hace
 
-- 🔎 **Busca sentencias de Puerto Rico** desde Claude.
+- 🔎 **Busca sentencias de Puerto Rico** desde Claude, ChatGPT u otros clientes MCP.
 - ⚡ Diseñado para búsquedas rápidas y consultas directas.
 - 📄 **Lee decisiones públicas en HTML y PDF**.
 - 🎯 Ordena candidatos por coincidencia con la consulta dentro de los metadatos que realmente aparecen en la fuente.
@@ -22,6 +44,7 @@ El objetivo es combinar **velocidad + precisión + trazabilidad**: encontrar rá
 - ⚖️ Devuelve **número de caso, cita TSPR y otros metadatos** únicamente cuando aparecen en la fuente.
 - 🔗 Conserva el **enlace a la fuente original** para verificación.
 - 🛡️ Aplica una política estricta de **zero citation hallucination**.
+- 🔒 Las herramientas son de investigación/lectura: no crean, modifican ni eliminan información en las fuentes judiciales.
 
 ## Regla crítica: integridad de citas
 
@@ -53,7 +76,7 @@ Cuando exista una publicación oficial verificable, esta debe preferirse para la
 - `opciones_busqueda` — fuentes, filtros y reglas de integridad.
 - `estado` — diagnóstico y garantías de integridad de citas.
 
-## Ejemplos de uso desde Claude
+## Ejemplos de uso
 
 > “Busca la mejor sentencia disponible del Tribunal Supremo de Puerto Rico sobre prescripción de una acción de daños y perjuicios.”
 
@@ -69,13 +92,13 @@ Cuando exista una publicación oficial verificable, esta debe preferirse para la
 
 La arquitectura sigue esta secuencia:
 
-**FUENTE → EXTRACCIÓN → VALIDACIÓN → MCP → CLAUDE**
+**FUENTE → EXTRACCIÓN → VALIDACIÓN → MCP → CLIENTE (CLAUDE / CHATGPT / OTRO)**
 
-No se utiliza el LLM como fuente de autoridad jurídica. Claude puede ayudar a interpretar una consulta, ordenar resultados o resumir documentos que ya fueron recuperados y verificados, pero **no puede crear una autoridad ni rellenar sus datos faltantes**.
+No se utiliza el LLM como fuente de autoridad jurídica. El cliente puede ayudar a interpretar una consulta, ordenar resultados o resumir documentos que ya fueron recuperados y verificados, pero **no puede crear una autoridad ni rellenar sus datos faltantes**.
 
 Los resultados incluyen campos de procedencia como `source`, `url`, `verified` y `verification_status`.
 
-## Instalación
+## Instalación local
 
 Requiere Python 3.10+.
 
@@ -105,9 +128,25 @@ pytest -q
 }
 ```
 
+### Servidor remoto
+
+Para desplegar el endpoint HTTP:
+
+```bash
+python remote_server.py
+```
+
+Por defecto escucha en `0.0.0.0` y usa el puerto `8000` o la variable `PORT` proporcionada por el proveedor de hosting. El endpoint MCP es `/mcp`.
+
+Para producción, debe utilizarse un proveedor que proporcione **HTTPS** y protección operacional adecuada. No se deben publicar credenciales ni información confidencial en variables de entorno o en el repositorio.
+
 ## Seguridad y acceso
 
 El servidor no intenta eludir CAPTCHA, controles anti-bot, autenticación, paywalls ni límites de acceso. Si una fuente no permite acceso automatizado, se debe utilizar el enlace para consulta manual.
+
+El endpoint remoto está diseñado como **MCP de lectura/investigación**: no ofrece herramientas para modificar las fuentes judiciales.
+
+ChatGPT advierte que conectar servidores MCP inseguros puede aumentar riesgos como prompt injection. Por ello, el servidor debe desplegarse, revisarse y mantenerse bajo control del propietario antes de conectarlo a un cliente externo.
 
 ## Privacidad
 
