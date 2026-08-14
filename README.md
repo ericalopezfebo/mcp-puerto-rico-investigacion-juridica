@@ -51,11 +51,11 @@ No debe afirmarse que el contenido está "100% privado" frente al proveedor de I
 
 ## Importante sobre ChatGPT y Claude
 
-Los servidores MCP locales usan normalmente **stdio**: la aplicación de IA ejecuta VELUM como un proceso local en la misma computadora. El SDK oficial de MCP documenta este patrón como el modelo de despliegue local. citeturn2search10
+Los servidores MCP locales usan normalmente **stdio**: la aplicación de IA ejecuta VELUM como un proceso local en la misma computadora. El SDK oficial de MCP documenta este patrón como el modelo de despliegue local.
 
-Claude Desktop admite servidores MCP locales y, actualmente, también permite empaquetarlos como extensiones `.mcpb`. citeturn3search0turn3search5
+Claude Desktop admite servidores MCP locales y también permite empaquetarlos como extensiones `.mcpb`.
 
-**ChatGPT es diferente:** actualmente ChatGPT no se conecta directamente a un MCP que solo corre localmente; OpenAI documenta el uso de servidores MCP remotos o de Secure MCP Tunnel para conectar un servidor que permanece local sin exponerlo públicamente. citeturn0search0
+**ChatGPT es diferente:** actualmente ChatGPT no se conecta directamente a un MCP que solo corre localmente. OpenAI documenta el uso de servidores MCP remotos o de Secure MCP Tunnel para conectar un servidor que permanece local sin exponerlo públicamente.
 
 Por eso hay dos escenarios:
 
@@ -218,7 +218,7 @@ Las pruebas cubren tanto la integridad de citas como las garantías básicas de 
 
 ## Distribución local
 
-El proyecto puede distribuirse como código fuente desde GitHub. El ecosistema MCP también dispone del formato **MCP Bundle (`.mcpb`)** para empaquetar servidores locales con un manifiesto y facilitar instalaciones de un clic en clientes compatibles. citeturn2search0
+El proyecto puede distribuirse como código fuente desde GitHub. El ecosistema MCP también dispone del formato **MCP Bundle (`.mcpb`)** para empaquetar servidores locales con un manifiesto y facilitar instalaciones de un clic en clientes compatibles.
 
 La siguiente evolución natural de este repositorio es publicar un `.mcpb` para VELUM, especialmente para Claude Desktop.
 
