@@ -2,6 +2,8 @@
 __pycache__/
 *.py[cod]
 .env
+.env.*
 .DS_Store
 .pytest_cache/
 .mypy_cache/
+*.anonimizado.txt
