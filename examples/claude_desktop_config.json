@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "velum": {
+      "command": "/ABSOLUTE/PATH/TO/mcp-puerto-rico-sentencias/.venv/bin/python",
+      "args": [
+        "/ABSOLUTE/PATH/TO/mcp-puerto-rico-sentencias/velum.py"
+      ],
+      "env": {
+        "VELUM_DOCUMENT_ROOT": "/ABSOLUTE/PATH/TO/YOUR/LEGAL-DOCUMENTS"
+      }
+    }
+  }
+}

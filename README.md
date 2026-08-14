@@ -1,169 +1,212 @@
-# MCP Puerto Rico Sentencias 🇵🇷
+# VELUM — MCP para documentos legales y jurisprudencia de Puerto Rico 🇵🇷
 
-## Busca y lee sentencias de Puerto Rico desde Claude, ChatGPT y otros clientes MCP
+**VELUM** es un servidor MCP local-first que combina dos capacidades separadas:
 
-**MCP Puerto Rico Sentencias** permite a **Claude Desktop / Cowork, ChatGPT y otros clientes compatibles con MCP** buscar, localizar y leer sentencias de Puerto Rico directamente desde fuentes públicas. Está diseñado para investigación jurídica rápida y verificable: encuentra los precedentes más relevantes disponibles para una cuestión, recupera el documento y permite extraer **pasajes del texto fuente**, junto con su **número de caso, cita y fuente**, cuando esos datos aparecen en el documento.
+1. **Privacidad documental local:** prepara documentos jurídicos sensibles antes de compartirlos con una IA.
+2. **Investigación de jurisprudencia:** busca decisiones públicas de Puerto Rico y recupera evidencia directamente de las fuentes.
 
-### Descripción
+## Jurisprudencia: búsqueda verificable, no citas inventadas
 
-Un servidor MCP enfocado en jurisprudencia de Puerto Rico. Convierte fuentes públicas de decisiones judiciales en herramientas que los asistentes compatibles con MCP pueden consultar en lenguaje natural, reduciendo el tiempo necesario para localizar precedentes y revisar el texto de las opiniones.
+La herramienta principal para investigación temática es `investigar_sentencias`.
 
-El objetivo es combinar **velocidad + precisión + trazabilidad**: encontrar rápidamente candidatos relevantes, leer sus documentos y devolver pasajes verificables sin inventar autoridades ni completar datos que no estén en la fuente.
+Ejemplo de uso desde Claude u otro cliente MCP:
 
-> **No inventa jurisprudencia.** Si una sentencia, cita, nombre, número de caso o dato jurídico no puede verificarse en una fuente identificable, el MCP lo marca como no verificado o informa que no fue encontrado.
+> Busca las 5 mejores sentencias de Puerto Rico que ayuden a mi argumento sobre pensión alimenticia. Dame la cita TSPR, enlace oficial, página y el pasaje relevante. No inventes nada.
 
-## Claude + ChatGPT
-
-El proyecto ofrece **un mismo conjunto de herramientas y reglas de integridad** para distintos clientes MCP:
-
-- **Claude Desktop / Cowork:** ejecución local mediante `stdio`.
-- **ChatGPT:** ejecución remota mediante **Streamable HTTP** sobre HTTPS.
-- **Otros clientes MCP:** pueden utilizar el transporte que soporte el cliente.
-
-El código de búsqueda, extracción y verificación es compartido. El cliente —Claude, ChatGPT u otro— **no es la fuente de la autoridad jurídica**.
-
-### ChatGPT: MCP remoto
-
-ChatGPT no se conecta directamente a un servidor MCP que solo esté ejecutándose en el ordenador local. Para usar este proyecto desde ChatGPT, el servidor debe estar desplegado en una URL **HTTPS** accesible y exponer el endpoint MCP:
+El flujo es:
 
 ```text
-https://TU-DOMINIO/mcp
+Consulta jurídica
+      │
+      ▼
+VELUM MCP
+      │
+      ├── índice público del Poder Judicial
+      ├── páginas por año
+      ├── PDFs de decisiones
+      ├── extracción del texto fuente
+      └── búsqueda/ranking documental
+              │
+              ▼
+   cita TSPR + URL + pasaje + página
+              │
+              ▼
+       análisis del modelo
 ```
 
-El repositorio incluye `remote_server.py`, `Dockerfile` y `render.yaml` para facilitar ese despliegue. El transporte utilizado es **Streamable HTTP**, el transporte HTTP actual del SDK de MCP.
+### Garantía de procedencia
 
-Después del despliegue, la URL `/mcp` puede utilizarse al crear/configurar una app MCP personalizada en ChatGPT, sujeto a la disponibilidad y permisos del plan o espacio de trabajo de ChatGPT.
+VELUM no trata al LLM como fuente de autoridad. Para los resultados de investigación:
 
-## Qué hace
+- la decisión debe encontrarse en una fuente permitida;
+- el PDF se descarga desde la fuente pública;
+- el texto relevante se extrae del documento;
+- la cita TSPR se devuelve cuando aparece en el documento;
+- el pasaje se devuelve desde el texto extraído, no generado por el modelo;
+- la página del PDF se conserva cuando puede identificarse;
+- si una cita exacta no aparece, `buscar_por_cita` no la sustituye por otra;
+- los datos que la fuente no proporciona se dejan vacíos;
+- el ranking mide coincidencia textual/temática y **no declara por sí mismo que una sentencia sea jurídicamente favorable**.
 
-- 🔎 **Busca sentencias de Puerto Rico** desde Claude, ChatGPT u otros clientes MCP.
-- ⚡ Diseñado para búsquedas rápidas y consultas directas.
-- 📄 **Lee decisiones públicas en HTML y PDF**.
-- 🎯 Ordena candidatos por coincidencia con la consulta dentro de los metadatos que realmente aparecen en la fuente.
-- 📌 Extrae **pasajes del documento fuente** y conserva su procedencia; en PDF, incluye página cuando puede determinarse.
-- ⚖️ Devuelve **número de caso, cita TSPR y otros metadatos** únicamente cuando aparecen en la fuente.
-- 🔗 Conserva el **enlace a la fuente original** para verificación.
-- 🛡️ Aplica una política estricta de **zero citation hallucination**.
-- 🔒 Las herramientas son de investigación/lectura: no crean, modifican ni eliminan información en las fuentes judiciales.
+Esto permite que Claude o ChatGPT haga la parte de razonamiento jurídico sobre evidencia que primero fue recuperada de una fuente identificable.
 
-## Regla crítica: integridad de citas
+### Herramientas de jurisprudencia
 
-**Este MCP NO puede inventar casos, sentencias, citas, nombres de las partes, jueces, fechas, números de caso, holdings ni citas textuales.**
+#### `investigar_sentencias`
 
-La regla es **source-first / zero citation hallucination**:
+Busca dentro del contenido de decisiones públicas y devuelve las autoridades potencialmente más relevantes para una consulta.
 
-1. Una autoridad jurídica solo se presenta como verificada cuando sus datos identificadores provienen de una fuente pública identificable.
-2. Los campos que la fuente no proporciona se dejan vacíos; el servidor no los completa por inferencia.
-3. `buscar_por_cita` exige coincidencia exacta de la cita y **no sustituye una cita inexistente por una parecida**.
-4. Si una autoridad no puede verificarse, el servidor devuelve `encontrado: false` y no genera una alternativa plausible.
-5. Los pasajes y citas textuales deben provenir del documento recuperado; nunca se presenta texto generado por un modelo como si fuera texto judicial.
-6. Los enlaces a la fuente se conservan para que el abogado pueda verificar la autoridad original.
+Devuelve, cuando están disponibles:
 
-**Es preferible devolver “no encontrado” que una autoridad jurídica falsa.**
+- cita TSPR;
+- URL oficial;
+- fuente;
+- puntuación de relevancia documental;
+- pasaje relevante extraído;
+- página del PDF;
+- número de caso si puede extraerse de la fuente.
 
-## Fuentes
+#### `buscar_sentencias`
 
-- **Poder Judicial de Puerto Rico — Tribunal Supremo:** fuente oficial de decisiones del Tribunal Supremo.
-- **LexJuris:** fuente complementaria para localizar jurisprudencia y documentos cuando estén públicamente accesibles.
+Busca decisiones en los índices públicos y, cuando el índice no contiene lenguaje temático suficiente, utiliza búsqueda dentro de documentos.
 
-Cuando exista una publicación oficial verificable, esta debe preferirse para la comprobación final de la autoridad.
+#### `buscar_por_cita`
 
-## Herramientas MCP
+Verifica una cita TSPR exacta. Si no se encuentra, devuelve `verificado: false` y no inventa ni sustituye la autoridad.
 
-- `buscar_sentencias` — búsqueda por palabras/frases, año y máximo de resultados.
-- `buscar_por_cita` — búsqueda **exacta y verificable** por cita TSPR.
-- `leer_sentencia` — descarga y extracción de texto desde HTML/PDF público, con pasajes relevantes y procedencia.
-- `opciones_busqueda` — fuentes, filtros y reglas de integridad.
-- `estado` — diagnóstico y garantías de integridad de citas.
+#### `leer_sentencia`
 
-## Ejemplos de uso
+Abre una URL permitida de una decisión y devuelve pasajes directamente extraídos del PDF/HTML, con página cuando está disponible.
 
-> “Busca la mejor sentencia disponible del Tribunal Supremo de Puerto Rico sobre prescripción de una acción de daños y perjuicios.”
+#### `opciones_busqueda` y `estado`
 
-> “Encuentra sentencias sobre arbitraje y dame el número de caso y los pasajes exactos donde el Tribunal explica la regla.”
+Exponen las fuentes, herramientas y garantías técnicas del servidor.
 
-> “Busca jurisprudencia sobre legitimación activa y selecciona los resultados más relevantes que puedas verificar.”
+### Límite importante
 
-> “Verifica si existe 2024 TSPR 140 y, si existe, dime el número de caso y extrae los pasajes pertinentes del documento.”
+Una coincidencia textual no equivale automáticamente al **holding** de una sentencia. Antes de citar una autoridad en un escrito, el usuario debe leer la decisión, comprobar qué resolvió realmente el Tribunal y verificar vigencia, precedentes posteriores y aplicabilidad al problema concreto.
 
-> “Si no encuentras la cita, no inventes ni sustituyas la sentencia.”
+VELUM deliberadamente no inventa esa parte.
 
-## Arquitectura de confianza
+## Fuentes de jurisprudencia
 
-La arquitectura sigue esta secuencia:
+- Poder Judicial de Puerto Rico: https://poderjudicial.pr/tribunal-supremo/decisiones-del-tribunal-supremo/
+- LexJuris: https://www.lexjuris.com/lexbusquedas.htm
 
-**FUENTE → EXTRACCIÓN → VALIDACIÓN → MCP → CLIENTE (CLAUDE / CHATGPT / OTRO)**
+El servidor no elude CAPTCHA, autenticación ni controles de acceso.
 
-No se utiliza el LLM como fuente de autoridad jurídica. El cliente puede ayudar a interpretar una consulta, ordenar resultados o resumir documentos que ya fueron recuperados y verificados, pero **no puede crear una autoridad ni rellenar sus datos faltantes**.
+---
 
-Los resultados incluyen campos de procedencia como `source`, `url`, `verified` y `verification_status`.
+# Privacidad documental local
 
-## Instalación local
+La parte de privacidad de VELUM procesa los documentos **en la computadora donde se ejecuta el MCP**. No necesita una cuenta de VELUM, una base de datos remota ni un servidor VELUM para anonimizar el documento.
+
+```text
+Documento legal original
+        │
+        ▼
+   VELUM en tu equipo
+        │
+        ├── extracción local
+        ├── redacción determinística
+        ├── reglas personalizadas
+        └── copia sanitizada local
+                │
+                ▼
+       revisión humana
+                │
+                ▼
+       IA externa, si el usuario decide compartir
+```
+
+- El archivo original se lee desde `VELUM_DOCUMENT_ROOT`.
+- Las herramientas de privacidad no hacen llamadas HTTP para procesar documentos.
+- VELUM usa MCP **stdio** para el servidor local.
+- El original no se modifica.
+- La copia anonimizada se crea dentro del directorio local permitido.
+- La huella SHA-256 se calcula localmente sin devolver el contenido.
+- La ruta de un documento se valida para impedir acceso fuera del directorio autorizado.
+
+### Límite de privacidad
+
+VELUM protege el documento original durante el procesamiento local, pero no puede controlar lo que el usuario posteriormente envíe a un proveedor de IA.
+
+Si una herramienta devuelve texto a ChatGPT, Claude u otra IA, ese texto sale del equipo y llega al proveedor de IA. La revisión humana sigue siendo necesaria.
+
+## No usamos un LLM para anonimizar
+
+La anonimización básica es determinística, mediante reglas locales. Actualmente contempla, entre otros:
+
+- correo electrónico;
+- teléfonos con formato estadounidense/PR;
+- SSN;
+- números de tarjeta;
+- fechas identificadas explícitamente como fecha de nacimiento;
+- redacciones personalizadas definidas por el usuario.
+
+Esto no constituye una garantía de anonimización completa.
+
+## Instalación
 
 Requiere Python 3.10+.
 
 ```bash
-python -m venv .venv
+git clone https://github.com/ericalopezfebo/mcp-puerto-rico-sentencias.git
+cd mcp-puerto-rico-sentencias
+python3 -m venv .venv
 source .venv/bin/activate
-pip install -e .
+pip install -e ".[test]"
 ```
 
-Para ejecutar las pruebas:
+Para las herramientas de privacidad local, configura el directorio de documentos:
 
 ```bash
-pip install -e ".[test]"
+mkdir -p ~/Documents/VELUM
+export VELUM_DOCUMENT_ROOT="$HOME/Documents/VELUM"
+```
+
+## Ejecutar
+
+Para iniciar el servidor local:
+
+```bash
+mcp-puerto-rico-sentencias
+```
+
+También puede ejecutarse con:
+
+```bash
+python3 server.py
+```
+
+El servidor MCP por `stdio` normalmente no abre una ventana: queda esperando mensajes del cliente MCP. Eso es normal.
+
+## Clientes de IA
+
+### Claude y clientes MCP locales
+
+Un cliente compatible con MCP/stdio puede iniciar el servidor local y utilizar sus herramientas.
+
+### ChatGPT
+
+ChatGPT puede utilizar apps MCP personalizadas, pero el mecanismo depende del producto y del plan. Actualmente OpenAI indica que ChatGPT se conecta a **servidores MCP remotos**, no directamente a un servidor MCP local por stdio. Para conectar un servidor que corre en una computadora de desarrollo se necesita una capa compatible, como un túnel MCP seguro. Consulta la documentación vigente de OpenAI antes de desplegarlo.
+
+Por eso este repositorio se puede descargar y ejecutar localmente para clientes MCP compatibles, mientras que para ChatGPT el siguiente paso de despliegue es exponer el MCP mediante una conexión remota compatible.
+
+## Seguridad
+
+- No se inventan casos, citas, nombres, fechas, holdings ni citas textuales.
+- No se eluden controles de acceso de las fuentes.
+- Las URLs de documentos están restringidas a los hosts configurados.
+- No se almacenan consultas ni documentos por defecto.
+- Los documentos originales no se modifican por las herramientas de privacidad.
+
+## Pruebas
+
+```bash
 pytest -q
 ```
 
-### Claude Desktop / Cowork
-
-```json
-{
-  "mcpServers": {
-    "puerto-rico-sentencias": {
-      "command": "/ruta/al/repositorio/.venv/bin/python",
-      "args": ["/ruta/al/repositorio/server.py"]
-    }
-  }
-}
-```
-
-### Servidor remoto
-
-Para desplegar el endpoint HTTP:
-
-```bash
-python remote_server.py
-```
-
-Por defecto escucha en `0.0.0.0` y usa el puerto `8000` o la variable `PORT` proporcionada por el proveedor de hosting. El endpoint MCP es `/mcp`.
-
-Para producción, debe utilizarse un proveedor que proporcione **HTTPS** y protección operacional adecuada. No se deben publicar credenciales ni información confidencial en variables de entorno o en el repositorio.
-
-## Seguridad y acceso
-
-El servidor no intenta eludir CAPTCHA, controles anti-bot, autenticación, paywalls ni límites de acceso. Si una fuente no permite acceso automatizado, se debe utilizar el enlace para consulta manual.
-
-El endpoint remoto está diseñado como **MCP de lectura/investigación**: no ofrece herramientas para modificar las fuentes judiciales.
-
-ChatGPT advierte que conectar servidores MCP inseguros puede aumentar riesgos como prompt injection. Por ello, el servidor debe desplegarse, revisarse y mantenerse bajo control del propietario antes de conectarlo a un cliente externo.
-
-## Privacidad
-
-No se incluyen credenciales en el repositorio. No se almacenan expedientes, consultas ni documentos del usuario por defecto.
-
-**Para uso jurídico:** las consultas deben estar anonimizadas y no deben incluir información confidencial del cliente cuando no sea necesaria para localizar jurisprudencia.
-
-## Uso profesional
-
-El MCP es una herramienta de investigación jurídica. Antes de citar una autoridad en un escrito u opinión, debe verificarse el documento original, su cita, contenido y vigencia/aplicabilidad.
-
-## Licencia y contenido de terceros
-
-El **código de este repositorio** está disponible bajo la **MIT License**. La licencia MIT aplica al software original de este proyecto; **no concede derechos sobre las sentencias, documentos, sitios web, marcas, bases de datos ni otro contenido de terceros** que el MCP pueda consultar o recuperar.
-
-Los usuarios son responsables de cumplir las condiciones de uso y los derechos aplicables a cada fuente. Las decisiones judiciales deben verificarse en la fuente original antes de su uso profesional.
-
 ## Licencia
 
-MIT — ver [`LICENSE`](LICENSE).
+El código original está disponible bajo **MIT License**. La licencia del software no concede derechos sobre sentencias, sitios web, marcas, bases de datos u otros contenidos de terceros.
