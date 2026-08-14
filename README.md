@@ -94,10 +94,18 @@ Puedes cambiarlo:
 export VELUM_DOCUMENT_ROOT="$HOME/Documents/VELUM"
 ```
 
-## Ejecutar VELUM local
+## Ejecutar el MCP local
+
+El comando principal es:
 
 ```bash
-velum-local
+velum
+```
+
+También puedes ejecutar directamente:
+
+```bash
+python3 velum.py
 ```
 
 **No esperes que aparezca un mensaje en pantalla.** Un servidor MCP stdio queda esperando mensajes del cliente. No abre un puerto y no termina hasta que el cliente lo cierre.
@@ -108,13 +116,7 @@ Para detenerlo manualmente:
 Ctrl+C
 ```
 
-También puedes ejecutar directamente:
-
-```bash
-python3 velum_local.py
-```
-
-## Herramientas locales
+## Herramientas de privacidad local
 
 ### `listar_documentos_locales`
 
@@ -145,6 +147,20 @@ Crea una copia `.anonimizado.txt` dentro del directorio local permitido. El orig
 ### `estado_privacidad`
 
 Muestra las garantías técnicas del modo local y deja explícito qué ocurre cuando el texto sanitizado se entrega a una IA externa.
+
+## Herramientas de jurisprudencia de Puerto Rico
+
+El mismo MCP también conserva la investigación de jurisprudencia de Puerto Rico:
+
+- `buscar_sentencias`
+- `buscar_por_cita`
+- `leer_sentencia`
+- `opciones_busqueda`
+- `estado`
+
+Estas herramientas consultan fuentes públicas judiciales y LexJuris. **Solo esa parte necesita Internet para buscar decisiones públicas.** Las herramientas de privacidad local no usan esas llamadas de red.
+
+La política jurídica sigue siendo **source-first / zero citation hallucination**: no se deben inventar casos, citas, nombres, fechas, holdings ni citas textuales.
 
 ## Tipos de documentos
 
@@ -180,22 +196,6 @@ Esto evita que una llamada de herramienta pueda intentar leer, por ejemplo, `/Us
 - No modifica el archivo original.
 
 La anonimización automática es **determinística y limitada**. En documentos jurídicos reales puede haber nombres, direcciones, identificadores, hechos sensibles o combinaciones de datos que requieran revisión humana y/o reglas personalizadas.
-
-## Jurisprudencia de Puerto Rico
-
-El repositorio también conserva el MCP de investigación de jurisprudencia de Puerto Rico. Esas herramientas consultan fuentes públicas judiciales y LexJuris; esa parte del programa puede usar Internet para buscar decisiones públicas.
-
-Las herramientas de privacidad de documentos locales son independientes y no usan esas llamadas de red.
-
-Herramientas de jurisprudencia existentes:
-
-- `buscar_sentencias`
-- `buscar_por_cita`
-- `leer_sentencia`
-- `opciones_busqueda`
-- `estado`
-
-La política jurídica sigue siendo **source-first / zero citation hallucination**: no se deben inventar casos, citas, nombres, fechas, holdings ni citas textuales.
 
 ## Integridad jurídica
 
