@@ -25,6 +25,9 @@ Issues = "https://github.com/ericalopezfebo/mcp-puerto-rico-sentencias/issues"
 [project.scripts]
 mcp-puerto-rico-sentencias = "server:main"
 
+[tool.setuptools]
+py-modules = ["server"]
+
 [build-system]
 requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
