@@ -1,6 +1,6 @@
 [project]
 name = "mcp-puerto-rico-sentencias"
-version = "0.5.0"
+version = "0.5.1"
 description = "MCP multiplataforma para buscar, verificar y leer sentencias de Puerto Rico desde Claude, ChatGPT y otros clientes MCP."
 readme = "README.md"
 license = { file = "LICENSE" }
@@ -9,7 +9,7 @@ authors = [
 ]
 requires-python = ">=3.10"
 dependencies = [
-  "mcp>=1.0.0",
+  "mcp>=1.28,<2",
   "httpx>=0.27.0",
   "beautifulsoup4>=4.12.0",
   "pypdf>=5.0.0",
