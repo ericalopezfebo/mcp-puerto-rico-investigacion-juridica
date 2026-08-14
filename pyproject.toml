@@ -1,0 +1,18 @@
+[project]
+name = "mcp-puerto-rico-sentencias"
+version = "0.1.0"
+description = "MCP server for searching and reading publicly available Puerto Rico Supreme Court decisions."
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+  "mcp>=1.0.0",
+  "httpx>=0.27.0",
+  "beautifulsoup4>=4.12.0",
+]
+
+[project.scripts]
+mcp-puerto-rico-sentencias = "server:main"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
