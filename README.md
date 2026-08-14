@@ -1,169 +1,227 @@
-# MCP Puerto Rico Sentencias 🇵🇷
+# VELUM — MCP local para documentos legales 🇵🇷
 
-## Busca y lee sentencias de Puerto Rico desde Claude, ChatGPT y otros clientes MCP
+**VELUM** es un servidor MCP **local-first** para trabajar con documentos legales sensibles desde aplicaciones de IA compatibles con MCP.
 
-**MCP Puerto Rico Sentencias** permite a **Claude Desktop / Cowork, ChatGPT y otros clientes compatibles con MCP** buscar, localizar y leer sentencias de Puerto Rico directamente desde fuentes públicas. Está diseñado para investigación jurídica rápida y verificable: encuentra los precedentes más relevantes disponibles para una cuestión, recupera el documento y permite extraer **pasajes del texto fuente**, junto con su **número de caso, cita y fuente**, cuando esos datos aparecen en el documento.
-
-### Descripción
-
-Un servidor MCP enfocado en jurisprudencia de Puerto Rico. Convierte fuentes públicas de decisiones judiciales en herramientas que los asistentes compatibles con MCP pueden consultar en lenguaje natural, reduciendo el tiempo necesario para localizar precedentes y revisar el texto de las opiniones.
-
-El objetivo es combinar **velocidad + precisión + trazabilidad**: encontrar rápidamente candidatos relevantes, leer sus documentos y devolver pasajes verificables sin inventar autoridades ni completar datos que no estén en la fuente.
-
-> **No inventa jurisprudencia.** Si una sentencia, cita, nombre, número de caso o dato jurídico no puede verificarse en una fuente identificable, el MCP lo marca como no verificado o informa que no fue encontrado.
-
-## Claude + ChatGPT
-
-El proyecto ofrece **un mismo conjunto de herramientas y reglas de integridad** para distintos clientes MCP:
-
-- **Claude Desktop / Cowork:** ejecución local mediante `stdio`.
-- **ChatGPT:** ejecución remota mediante **Streamable HTTP** sobre HTTPS.
-- **Otros clientes MCP:** pueden utilizar el transporte que soporte el cliente.
-
-El código de búsqueda, extracción y verificación es compartido. El cliente —Claude, ChatGPT u otro— **no es la fuente de la autoridad jurídica**.
-
-### ChatGPT: MCP remoto
-
-ChatGPT no se conecta directamente a un servidor MCP que solo esté ejecutándose en el ordenador local. Para usar este proyecto desde ChatGPT, el servidor debe estar desplegado en una URL **HTTPS** accesible y exponer el endpoint MCP:
+Su diseño principal es simple:
 
 ```text
-https://TU-DOMINIO/mcp
+Documento legal en tu Mac/PC
+        │
+        ▼
+   VELUM local
+        │
+        ├── extracción local
+        ├── huella SHA-256 local
+        └── anonimización/redacción local
+                │
+                ▼
+        texto sanitizado
+                │
+                ▼
+       ChatGPT / Claude / otra IA
 ```
 
-El repositorio incluye `remote_server.py`, `Dockerfile` y `render.yaml` para facilitar ese despliegue. El transporte utilizado es **Streamable HTTP**, el transporte HTTP actual del SDK de MCP.
+## Qué protege
 
-Después del despliegue, la URL `/mcp` puede utilizarse al crear/configurar una app MCP personalizada en ChatGPT, sujeto a la disponibilidad y permisos del plan o espacio de trabajo de ChatGPT.
+El documento original permanece en el dispositivo. Las herramientas de privacidad de VELUM:
 
-## Qué hace
+- no suben archivos a VELUM ni a un servidor propio;
+- no abren un puerto de red;
+- funcionan mediante **MCP stdio**;
+- no hacen llamadas HTTP para procesar documentos locales;
+- permiten extraer texto de PDF, DOCX, TXT, Markdown y HTML localmente;
+- pueden sustituir automáticamente identificadores comunes (email, teléfono, SSN, tarjeta y fecha de nacimiento etiquetada);
+- permiten especificar redacciones adicionales, por ejemplo `{"Jane Doe":"[CLIENTE]"}`;
+- pueden crear una copia anonimizada local;
+- pueden generar un SHA-256 del archivo sin devolver su contenido.
 
-- 🔎 **Busca sentencias de Puerto Rico** desde Claude, ChatGPT u otros clientes MCP.
-- ⚡ Diseñado para búsquedas rápidas y consultas directas.
-- 📄 **Lee decisiones públicas en HTML y PDF**.
-- 🎯 Ordena candidatos por coincidencia con la consulta dentro de los metadatos que realmente aparecen en la fuente.
-- 📌 Extrae **pasajes del documento fuente** y conserva su procedencia; en PDF, incluye página cuando puede determinarse.
-- ⚖️ Devuelve **número de caso, cita TSPR y otros metadatos** únicamente cuando aparecen en la fuente.
-- 🔗 Conserva el **enlace a la fuente original** para verificación.
-- 🛡️ Aplica una política estricta de **zero citation hallucination**.
-- 🔒 Las herramientas son de investigación/lectura: no crean, modifican ni eliminan información en las fuentes judiciales.
+### La regla de privacidad más importante
 
-## Regla crítica: integridad de citas
+**VELUM no puede impedir que una IA externa reciba los datos que el usuario decida devolverle.**
 
-**Este MCP NO puede inventar casos, sentencias, citas, nombres de las partes, jueces, fechas, números de caso, holdings ni citas textuales.**
+Por eso el flujo recomendado para un documento confidencial es:
 
-La regla es **source-first / zero citation hallucination**:
+1. El archivo se queda en tu equipo.
+2. VELUM lo procesa localmente.
+3. VELUM devuelve únicamente el texto sanitizado.
+4. El usuario revisa el resultado.
+5. Solo entonces ese texto sanitizado puede enviarse a ChatGPT, Claude u otra IA.
 
-1. Una autoridad jurídica solo se presenta como verificada cuando sus datos identificadores provienen de una fuente pública identificable.
-2. Los campos que la fuente no proporciona se dejan vacíos; el servidor no los completa por inferencia.
-3. `buscar_por_cita` exige coincidencia exacta de la cita y **no sustituye una cita inexistente por una parecida**.
-4. Si una autoridad no puede verificarse, el servidor devuelve `encontrado: false` y no genera una alternativa plausible.
-5. Los pasajes y citas textuales deben provenir del documento recuperado; nunca se presenta texto generado por un modelo como si fuera texto judicial.
-6. Los enlaces a la fuente se conservan para que el abogado pueda verificar la autoridad original.
+No debe afirmarse que el contenido está "100% privado" frente al proveedor de IA si el texto se envía a ese proveedor. **La garantía de VELUM es que el archivo original no se envía a un servidor de VELUM y que la sanitización ocurre antes de compartir contenido con una IA externa.**
 
-**Es preferible devolver “no encontrado” que una autoridad jurídica falsa.**
+## Importante sobre ChatGPT y Claude
 
-## Fuentes
+Los servidores MCP locales usan normalmente **stdio**: la aplicación de IA ejecuta VELUM como un proceso local en la misma computadora. El SDK oficial de MCP documenta este patrón como el modelo de despliegue local. citeturn2search10
 
-- **Poder Judicial de Puerto Rico — Tribunal Supremo:** fuente oficial de decisiones del Tribunal Supremo.
-- **LexJuris:** fuente complementaria para localizar jurisprudencia y documentos cuando estén públicamente accesibles.
+Claude Desktop admite servidores MCP locales y, actualmente, también permite empaquetarlos como extensiones `.mcpb`. citeturn3search0turn3search5
 
-Cuando exista una publicación oficial verificable, esta debe preferirse para la comprobación final de la autoridad.
+**ChatGPT es diferente:** actualmente ChatGPT no se conecta directamente a un MCP que solo corre localmente; OpenAI documenta el uso de servidores MCP remotos o de Secure MCP Tunnel para conectar un servidor que permanece local sin exponerlo públicamente. citeturn0search0
 
-## Herramientas MCP
+Por eso hay dos escenarios:
 
-- `buscar_sentencias` — búsqueda por palabras/frases, año y máximo de resultados.
-- `buscar_por_cita` — búsqueda **exacta y verificable** por cita TSPR.
-- `leer_sentencia` — descarga y extracción de texto desde HTML/PDF público, con pasajes relevantes y procedencia.
-- `opciones_busqueda` — fuentes, filtros y reglas de integridad.
-- `estado` — diagnóstico y garantías de integridad de citas.
+### Claude Desktop / clientes con MCP local
 
-## Ejemplos de uso
+VELUM puede ejecutarse completamente local mediante stdio. El cliente inicia el proceso en tu computadora.
 
-> “Busca la mejor sentencia disponible del Tribunal Supremo de Puerto Rico sobre prescripción de una acción de daños y perjuicios.”
+### ChatGPT
 
-> “Encuentra sentencias sobre arbitraje y dame el número de caso y los pasajes exactos donde el Tribunal explica la regla.”
+Para que ChatGPT pueda usar un MCP local hay que utilizar el mecanismo de conexión que admita el producto, actualmente Secure MCP Tunnel para este caso. **Eso no convierte el documento original en un documento remoto:** el servidor y el archivo pueden permanecer en tu máquina, pero cualquier texto que VELUM devuelva a ChatGPT será recibido por ChatGPT.
 
-> “Busca jurisprudencia sobre legitimación activa y selecciona los resultados más relevantes que puedas verificar.”
+Para documentos confidenciales, el flujo recomendado sigue siendo **anonimizar primero y enviar después**.
 
-> “Verifica si existe 2024 TSPR 140 y, si existe, dime el número de caso y extrae los pasajes pertinentes del documento.”
-
-> “Si no encuentras la cita, no inventes ni sustituyas la sentencia.”
-
-## Arquitectura de confianza
-
-La arquitectura sigue esta secuencia:
-
-**FUENTE → EXTRACCIÓN → VALIDACIÓN → MCP → CLIENTE (CLAUDE / CHATGPT / OTRO)**
-
-No se utiliza el LLM como fuente de autoridad jurídica. El cliente puede ayudar a interpretar una consulta, ordenar resultados o resumir documentos que ya fueron recuperados y verificados, pero **no puede crear una autoridad ni rellenar sus datos faltantes**.
-
-Los resultados incluyen campos de procedencia como `source`, `url`, `verified` y `verification_status`.
-
-## Instalación local
+## Instalación
 
 Requiere Python 3.10+.
 
 ```bash
-python -m venv .venv
+git clone https://github.com/ericalopezfebo/mcp-puerto-rico-sentencias.git
+cd mcp-puerto-rico-sentencias
+
+python3 -m venv .venv
 source .venv/bin/activate
-pip install -e .
+pip install -e ".[test]"
 ```
 
-Para ejecutar las pruebas:
+Crea el directorio protegido de documentos:
 
 ```bash
-pip install -e ".[test]"
-pytest -q
+mkdir -p ~/Documents/VELUM
 ```
 
-### Claude Desktop / Cowork
+Puedes cambiarlo:
+
+```bash
+export VELUM_DOCUMENT_ROOT="$HOME/Documents/VELUM"
+```
+
+## Ejecutar VELUM local
+
+```bash
+velum-local
+```
+
+**No esperes que aparezca un mensaje en pantalla.** Un servidor MCP stdio queda esperando mensajes del cliente. No abre un puerto y no termina hasta que el cliente lo cierre.
+
+Para detenerlo manualmente:
+
+```text
+Ctrl+C
+```
+
+También puedes ejecutar directamente:
+
+```bash
+python3 velum_local.py
+```
+
+## Herramientas locales
+
+### `listar_documentos_locales`
+
+Lista nombres y metadatos de documentos permitidos dentro de `VELUM_DOCUMENT_ROOT` sin devolver su contenido.
+
+### `huella_documento_local`
+
+Calcula SHA-256 localmente. Es útil para demostrar que un archivo cambió sin enviar el archivo.
+
+### `preparar_documento_para_ia`
+
+Lee el archivo localmente, extrae su texto y aplica redacciones determinísticas. Devuelve **solo el resultado sanitizado**.
+
+Ejemplo de redacciones adicionales:
 
 ```json
 {
-  "mcpServers": {
-    "puerto-rico-sentencias": {
-      "command": "/ruta/al/repositorio/.venv/bin/python",
-      "args": ["/ruta/al/repositorio/server.py"]
-    }
-  }
+  "Jane Doe": "[CLIENTE]",
+  "Acme Holdings LLC": "[EMPRESA]",
+  "787-555-9876": "[TELEFONO_CLIENTE]"
 }
 ```
 
-### Servidor remoto
+### `crear_copia_anonimizada`
 
-Para desplegar el endpoint HTTP:
+Crea una copia `.anonimizado.txt` dentro del directorio local permitido. El original no se modifica.
 
-```bash
-python remote_server.py
+### `estado_privacidad`
+
+Muestra las garantías técnicas del modo local y deja explícito qué ocurre cuando el texto sanitizado se entrega a una IA externa.
+
+## Tipos de documentos
+
+- PDF
+- DOCX
+- TXT
+- Markdown
+- HTML
+
+Límite predeterminado: **25 MB por archivo**.
+
+## Seguridad del sistema de archivos
+
+VELUM no permite que las herramientas locales lean cualquier ruta arbitraria del sistema.
+
+Por defecto solo acepta archivos dentro de:
+
+```text
+~/Documents/VELUM
 ```
 
-Por defecto escucha en `0.0.0.0` y usa el puerto `8000` o la variable `PORT` proporcionada por el proveedor de hosting. El endpoint MCP es `/mcp`.
+También puede configurarse mediante `VELUM_DOCUMENT_ROOT`.
 
-Para producción, debe utilizarse un proveedor que proporcione **HTTPS** y protección operacional adecuada. No se deben publicar credenciales ni información confidencial en variables de entorno o en el repositorio.
+Esto evita que una llamada de herramienta pueda intentar leer, por ejemplo, `/Users/.../.ssh`, `/etc/passwd` u otros archivos fuera del directorio autorizado.
 
-## Seguridad y acceso
+## Qué NO hace VELUM
 
-El servidor no intenta eludir CAPTCHA, controles anti-bot, autenticación, paywalls ni límites de acceso. Si una fuente no permite acceso automatizado, se debe utilizar el enlace para consulta manual.
+- No envía documentos a un servidor propio.
+- No guarda expedientes en una base de datos remota.
+- No usa una API de OpenAI, Anthropic u otro proveedor para anonimizar documentos.
+- No usa un LLM para decidir qué texto debe ocultar.
+- No promete detectar todos los datos personales automáticamente.
+- No modifica el archivo original.
 
-El endpoint remoto está diseñado como **MCP de lectura/investigación**: no ofrece herramientas para modificar las fuentes judiciales.
+La anonimización automática es **determinística y limitada**. En documentos jurídicos reales puede haber nombres, direcciones, identificadores, hechos sensibles o combinaciones de datos que requieran revisión humana y/o reglas personalizadas.
 
-ChatGPT advierte que conectar servidores MCP inseguros puede aumentar riesgos como prompt injection. Por ello, el servidor debe desplegarse, revisarse y mantenerse bajo control del propietario antes de conectarlo a un cliente externo.
+## Jurisprudencia de Puerto Rico
 
-## Privacidad
+El repositorio también conserva el MCP de investigación de jurisprudencia de Puerto Rico. Esas herramientas consultan fuentes públicas judiciales y LexJuris; esa parte del programa puede usar Internet para buscar decisiones públicas.
 
-No se incluyen credenciales en el repositorio. No se almacenan expedientes, consultas ni documentos del usuario por defecto.
+Las herramientas de privacidad de documentos locales son independientes y no usan esas llamadas de red.
 
-**Para uso jurídico:** las consultas deben estar anonimizadas y no deben incluir información confidencial del cliente cuando no sea necesaria para localizar jurisprudencia.
+Herramientas de jurisprudencia existentes:
 
-## Uso profesional
+- `buscar_sentencias`
+- `buscar_por_cita`
+- `leer_sentencia`
+- `opciones_busqueda`
+- `estado`
 
-El MCP es una herramienta de investigación jurídica. Antes de citar una autoridad en un escrito u opinión, debe verificarse el documento original, su cita, contenido y vigencia/aplicabilidad.
+La política jurídica sigue siendo **source-first / zero citation hallucination**: no se deben inventar casos, citas, nombres, fechas, holdings ni citas textuales.
 
-## Licencia y contenido de terceros
+## Integridad jurídica
 
-El **código de este repositorio** está disponible bajo la **MIT License**. La licencia MIT aplica al software original de este proyecto; **no concede derechos sobre las sentencias, documentos, sitios web, marcas, bases de datos ni otro contenido de terceros** que el MCP pueda consultar o recuperar.
+Este proyecto no sustituye la revisión profesional de una autoridad jurídica. Antes de utilizar una sentencia en un escrito, debe verificarse el documento original, la cita, su contenido y su vigencia/aplicabilidad.
 
-Los usuarios son responsables de cumplir las condiciones de uso y los derechos aplicables a cada fuente. Las decisiones judiciales deben verificarse en la fuente original antes de su uso profesional.
+## Pruebas
+
+Ejecuta:
+
+```bash
+pytest -q
+```
+
+Las pruebas cubren tanto la integridad de citas como las garantías básicas de privacidad local, incluyendo:
+
+- redacción de identificadores comunes;
+- redacciones personalizadas;
+- prohibición de devolver el original desde la herramienta de preparación;
+- rechazo de rutas fuera de `VELUM_DOCUMENT_ROOT`.
+
+## Distribución local
+
+El proyecto puede distribuirse como código fuente desde GitHub. El ecosistema MCP también dispone del formato **MCP Bundle (`.mcpb`)** para empaquetar servidores locales con un manifiesto y facilitar instalaciones de un clic en clientes compatibles. citeturn2search0
+
+La siguiente evolución natural de este repositorio es publicar un `.mcpb` para VELUM, especialmente para Claude Desktop.
 
 ## Licencia
 
-MIT — ver [`LICENSE`](LICENSE).
+El código original está disponible bajo la **MIT License**. La licencia del software no concede derechos sobre sentencias, sitios web, marcas, bases de datos u otros contenidos de terceros.
