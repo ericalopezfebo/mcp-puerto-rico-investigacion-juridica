@@ -1,7 +1,7 @@
 """Remote MCP entrypoint for ChatGPT and other MCP clients.
 
 Uses the same MCP instance and the same tools as server.py, but exposes them
-through the current Streamable HTTP transport instead of stdio.
+through Streamable HTTP instead of stdio.
 
 Deploy this process behind HTTPS. ChatGPT connects to the resulting /mcp URL.
 """
@@ -13,7 +13,7 @@ import os
 from server import mcp
 
 
-if __name__ == "__main__":
+def main() -> None:
     host = os.getenv("MCP_HOST", "0.0.0.0")
     port = int(os.getenv("PORT", os.getenv("MCP_PORT", "8000")))
     mcp.run(
@@ -22,3 +22,7 @@ if __name__ == "__main__":
         port=port,
         streamable_http_path="/mcp",
     )
+
+
+if __name__ == "__main__":
+    main()
