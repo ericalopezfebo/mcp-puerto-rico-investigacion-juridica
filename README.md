@@ -107,11 +107,13 @@ Los resultados incluyen campos de procedencia como `source`, `url`, `verified` y
 
 ## Instalación local
 
-Requiere Python 3.10+.
+Requiere Python 3.10+ y [Git](https://git-scm.com/downloads).
 
 ```bash
+git clone https://github.com/ericalopezfebo/mcp-puerto-rico-sentencias.git
+cd mcp-puerto-rico-sentencias
 python -m venv .venv
-source .venv/bin/activate
+source .venv/bin/activate   # en Windows: .venv\Scripts\activate
 pip install -e .
 ```
 
@@ -140,19 +142,36 @@ Agrega esto al archivo de configuración de Claude Desktop:
 }
 ```
 
+En Windows, `command` apunta a `C:\ruta\al\repositorio\.venv\Scripts\python.exe` (el layout del venv es distinto: `Scripts\` en vez de `bin/`).
+
 Reinicia Claude Desktop después de guardar el archivo.
 
 ### Claude Code (CLI)
 
 ```bash
-claude mcp add puerto-rico-sentencias /ruta/al/repositorio/.venv/bin/python /ruta/al/repositorio/server.py
+claude mcp add puerto-rico-sentencias -- /ruta/al/repositorio/.venv/bin/python /ruta/al/repositorio/server.py
 ```
+
+En Windows, usa `.venv\Scripts\python.exe` en vez de `.venv/bin/python`.
 
 En ambos casos, usa la ruta absoluta al intérprete dentro de `.venv` creado en el paso anterior (no el `python` del sistema), para que el servidor arranque con las dependencias del proyecto ya instaladas.
 
-### Servidor remoto
+### Verifica que quedó conectado
 
-Para desplegar el endpoint HTTP:
+- **Claude Desktop:** después de reiniciar, el ícono de 🔌/herramientas en el cuadro de mensaje debe mostrar `puerto-rico-sentencias` con sus herramientas listadas (`investigar_sentencias`, `buscar_sentencias`, `buscar_por_cita`, `leer_sentencia`, `opciones_busqueda`, `estado`). Si no aparece, revisa que la ruta al `.venv/bin/python` en el JSON sea absoluta y exista.
+- **Claude Code:** ejecuta `claude mcp list` — debe aparecer `puerto-rico-sentencias` como conectado (no como "Pending approval" ni con error).
+- **Prueba rápida en cualquiera de los dos:** pídele a Claude que use la herramienta `estado` del MCP. Debe devolver un JSON con `"servidor": "puerto-rico-sentencias"` y las garantías de integridad. Esa llamada es instantánea (no toca la fuente pública), a diferencia de `investigar_sentencias`/`buscar_sentencias`, que sí consultan el sitio oficial y por eso pueden tardar.
+
+### Servidor remoto (para ChatGPT u otros clientes HTTP)
+
+**Opción con un clic (Render):** el repo incluye `render.yaml`, listo para un despliegue *Blueprint*:
+
+1. Entra a [render.com](https://render.com) e inicia sesión (puedes usar tu cuenta de GitHub).
+2. **New +** → **Blueprint** → selecciona tu fork/clon de este repositorio en GitHub.
+3. Render detecta `render.yaml` y `Dockerfile` automáticamente y crea el servicio. Espera a que el build termine (unos minutos).
+4. Copia la URL pública que Render asigna al servicio (algo como `https://mcp-puerto-rico-sentencias.onrender.com`) — el endpoint MCP es esa URL **+ `/mcp`**.
+
+**Manual / otro proveedor:**
 
 ```bash
 python remote_server.py
@@ -161,6 +180,21 @@ python remote_server.py
 Por defecto escucha en `0.0.0.0` y usa el puerto `8000` o la variable `PORT` proporcionada por el proveedor de hosting. El endpoint MCP es `/mcp`.
 
 Para producción, debe utilizarse un proveedor que proporcione **HTTPS** y protección operacional adecuada. No se deben publicar credenciales ni información confidencial en variables de entorno o en el repositorio.
+
+### Conectar la URL remota a ChatGPT
+
+1. En ChatGPT, entra a la configuración de conectores/apps (la ubicación exacta depende de tu plan/espacio de trabajo — busca "Connectors", "Apps" o "Conectar aplicaciones" en Configuración).
+2. Agrega un conector personalizado y pega la URL con `/mcp` al final (paso 4 de arriba).
+3. Guarda y actívalo en la conversación donde quieras usarlo. ChatGPT mostrará un aviso sobre conectar servidores MCP externos — es normal; revisa que la URL sea la tuya antes de aceptar.
+4. Prueba pidiendo que use la herramienta `estado` para confirmar la conexión, igual que en Claude.
+
+### Solución de problemas comunes
+
+- **El MCP no aparece en Claude Desktop después de reiniciar.** Revisa que la ruta en `command` sea absoluta (no `~` ni rutas relativas) y apunte al `python` **dentro de `.venv`**, no al del sistema. Verifica el JSON con un validador — una coma de más lo invalida silenciosamente.
+- **`ModuleNotFoundError` al iniciar.** Las dependencias se instalaron en un entorno distinto al que Claude está usando para lanzar el proceso. Vuelve a correr `pip install -e .` con el mismo `.venv` referenciado en la configuración.
+- **`investigar_sentencias`/`buscar_sentencias` parecen "colgados" o tardan mucho.** Es esperado: leen y verifican PDFs reales contra el sitio oficial en cada llamada, así que una búsqueda temática amplia puede tardar 1-2 minutos. Si el cliente reporta timeout antes de eso, pide la búsqueda para un año específico (parámetro `anos`) — es más rápida porque cubre menos terreno.
+- **Python menor a 3.10.** `pip install -e .` fallará indicando la versión requerida. Instala Python 3.10+ y vuelve a crear el `.venv`.
+- **Windows: `source .venv/bin/activate` no funciona.** Usa `.venv\Scripts\activate` en PowerShell o CMD (ya indicado arriba).
 
 ## Seguridad y acceso
 
