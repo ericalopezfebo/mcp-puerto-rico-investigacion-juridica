@@ -4,6 +4,26 @@
 
 **MCP Puerto Rico Sentencias** permite a **Claude Desktop / Cowork, ChatGPT y otros clientes compatibles con MCP** buscar, localizar y leer sentencias de Puerto Rico directamente desde fuentes públicas. Está diseñado para investigación jurídica rápida y verificable: encuentra los precedentes más relevantes disponibles para una cuestión, recupera el documento y permite extraer **pasajes del texto fuente**, junto con su **número de caso, cita y fuente**, cuando esos datos aparecen en el documento.
 
+**Código abierto (MIT).** Todo el código de búsqueda, extracción y verificación está en este repositorio y puede auditarse, modificarse o autoalojarse libremente — ver [Licencia y contenido de terceros](#licencia-y-contenido-de-terceros).
+
+## 🚀 Inicio rápido
+
+Endpoint MCP público de esta instancia de demostración:
+
+```text
+https://mcp-puerto-rico-sentencias.onrender.com/mcp
+```
+
+> ⚠️ **Esto es una instancia de demostración/prueba, no un servicio con SLA.** Corre en el plan gratuito de Render, así que tras un período de inactividad **la primera solicitud puede tardar ~50 segundos o más** en responder mientras el servicio "despierta". No la trates como infraestructura garantizada para producción — para eso, autoaloja tu propia instancia (ver opción C abajo).
+
+Tres formas de usar este proyecto, según lo que necesites:
+
+| | Qué es | Para quién |
+|---|---|---|
+| **A. Instancia pública** | Conecta directamente al endpoint de arriba desde ChatGPT u otro cliente MCP-HTTP. Cero instalación. | Probar el proyecto rápido. Ver [Conectar la URL remota a ChatGPT](#conectar-la-url-remota-a-chatgpt). |
+| **B. Instalación local** | Corre el servidor en tu máquina y conéctalo a Claude Desktop o Claude Code por `stdio`. | Uso diario con Claude, con la ejecución bajo tu control. Ver [Instalación local](#instalación-local). |
+| **C. Autoalojar tu propia instancia** | Despliega tu propio fork en Render (u otro proveedor) con Docker. | Necesitas un endpoint propio, disponible 24/7 y bajo tu control — p. ej. para ChatGPT o un equipo. Ver [Servidor remoto](#servidor-remoto-para-chatgpt-u-otros-clientes-http). |
+
 ### Descripción
 
 Un servidor MCP enfocado en jurisprudencia de Puerto Rico. Convierte fuentes públicas de decisiones judiciales en herramientas que los asistentes compatibles con MCP pueden consultar en lenguaje natural, reduciendo el tiempo necesario para localizar precedentes y revisar el texto de las opiniones.
@@ -163,6 +183,8 @@ En ambos casos, usa la ruta absoluta al intérprete dentro de `.venv` creado en 
 - **Prueba rápida en cualquiera de los dos:** pídele a Claude que use la herramienta `estado` del MCP. Debe devolver un JSON con `"servidor": "puerto-rico-sentencias"` y las garantías de integridad. Esa llamada es instantánea (no toca la fuente pública), a diferencia de `investigar_sentencias`/`buscar_sentencias`, que sí consultan el sitio oficial y por eso pueden tardar.
 
 ### Servidor remoto (para ChatGPT u otros clientes HTTP)
+
+> Esta sección explica cómo desplegar **tu propia** instancia remota. Si solo quieres probar el proyecto sin desplegar nada, usa la instancia pública de demostración del [Inicio rápido](#-inicio-rápido) — con las mismas limitaciones de plan gratuito (arranque en frío) descritas ahí.
 
 **Opción con un clic (Render):** el repo incluye `render.yaml`, listo para un despliegue *Blueprint*:
 
