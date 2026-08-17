@@ -70,13 +70,20 @@ Cuando exista una publicación oficial verificable, esta debe preferirse para la
 
 ## Herramientas MCP
 
+- `investigar_sentencias` — la herramienta principal para argumentos jurídicos: busca dentro del **texto real** de las sentencias públicas (no solo en el índice), puntúa por coincidencia temática y devuelve las mejores autoridades **ya verificadas** contra el PDF oficial, con cita, número de caso, página y pasaje exacto. Si no existen suficientes decisiones pertinentes y verificables, devuelve menos de las solicitadas — nunca rellena con casos marginales.
 - `buscar_sentencias` — búsqueda por palabras/frases, año y máximo de resultados.
 - `buscar_por_cita` — búsqueda **exacta y verificable** por cita TSPR.
 - `leer_sentencia` — descarga y extracción de texto desde HTML/PDF público, con pasajes relevantes y procedencia.
 - `opciones_busqueda` — fuentes, filtros y reglas de integridad.
 - `estado` — diagnóstico y garantías de integridad de citas.
 
+### Cómo prioriza y por qué puede devolver menos resultados de los pedidos
+
+El índice oficial del Tribunal Supremo no incluye materia/asunto junto a cada enlace — solo la cita. Por eso `investigar_sentencias` no puede clasificar por tema sin abrir los documentos. Para responder en un tiempo razonable sin descargar cientos de PDFs innecesariamente, la búsqueda avanza **por rondas**: revisa un año a la vez (empezando por el más reciente), lee y verifica un lote acotado de sus PDFs, y se detiene en cuanto encuentra suficientes resultados verificados o agota su presupuesto de lectura. La respuesta incluye `anos_explorados` y `anos_no_explorados` para que quede claro qué se revisó realmente — un año en `anos_no_explorados` significa que no se llegó a revisar en esa llamada, **no** que ahí no haya jurisprudencia relevante.
+
 ## Ejemplos de uso
+
+> “Busca las mejores 5 sentencias del Tribunal Supremo de Puerto Rico que apoyen mi argumento sobre pensión alimenticia.”
 
 > “Busca la mejor sentencia disponible del Tribunal Supremo de Puerto Rico sobre prescripción de una acción de daños y perjuicios.”
 
@@ -117,6 +124,11 @@ pytest -q
 
 ### Claude Desktop / Cowork
 
+Agrega esto al archivo de configuración de Claude Desktop:
+
+- macOS: `~/Library/Application Support/Claude/claude_desktop_config.json`
+- Windows: `%APPDATA%\Claude\claude_desktop_config.json`
+
 ```json
 {
   "mcpServers": {
@@ -127,6 +139,16 @@ pytest -q
   }
 }
 ```
+
+Reinicia Claude Desktop después de guardar el archivo.
+
+### Claude Code (CLI)
+
+```bash
+claude mcp add puerto-rico-sentencias /ruta/al/repositorio/.venv/bin/python /ruta/al/repositorio/server.py
+```
+
+En ambos casos, usa la ruta absoluta al intérprete dentro de `.venv` creado en el paso anterior (no el `python` del sistema), para que el servidor arranque con las dependencias del proyecto ya instaladas.
 
 ### Servidor remoto
 
