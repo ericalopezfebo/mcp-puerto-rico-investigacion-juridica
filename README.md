@@ -171,6 +171,8 @@ En ambos casos, usa la ruta absoluta al intérprete dentro de `.venv` creado en 
 3. Render detecta `render.yaml` y `Dockerfile` automáticamente y crea el servicio. Espera a que el build termine (unos minutos).
 4. Copia la URL pública que Render asigna al servicio (algo como `https://mcp-puerto-rico-sentencias.onrender.com`) — el endpoint MCP es esa URL **+ `/mcp`**.
 
+En Render, `RENDER_EXTERNAL_HOSTNAME` la proporciona la plataforma automáticamente (no hace falta configurarla): el servidor la detecta y la usa para aceptar solicitudes con ese host, así que no se necesita ninguna variable adicional.
+
 **Manual / otro proveedor:**
 
 ```bash
@@ -178,6 +180,8 @@ python remote_server.py
 ```
 
 Por defecto escucha en `0.0.0.0` y usa el puerto `8000` o la variable `PORT` proporcionada por el proveedor de hosting. El endpoint MCP es `/mcp`.
+
+Fuera de Render, define `MCP_ALLOWED_HOSTS` (host público, ej. `mcp.tu-dominio.com`) y `MCP_ALLOWED_ORIGINS` (origen HTTPS completo, ej. `https://mcp.tu-dominio.com`) con el dominio real del despliegue. Sin esto, la protección contra DNS rebinding solo acepta `localhost`/`127.0.0.1` por defecto y **toda solicitud externa recibirá `421 Misdirected Request`**.
 
 Para producción, debe utilizarse un proveedor que proporcione **HTTPS** y protección operacional adecuada. No se deben publicar credenciales ni información confidencial en variables de entorno o en el repositorio.
 
