@@ -68,13 +68,16 @@ La capa pública de descubrimiento actualmente cubre 1997 en adelante. La herram
 
 ### Investigación jurídica ampliada
 
-- `investigar_derecho_pr` — punto de entrada multi-fuente. Coordina candidatos del Tribunal Supremo y Tribunal de Apelaciones y orienta hacia fuentes oficiales adicionales.
+- `buscar_mejores_autoridades` — **punto de entrada preferido para una pregunta que pueda requerir varias clases de autoridad.** Coordina el Top-K TSPR verificado con legislación/reglamentos, decisiones administrativas y otras colecciones públicas, pero mantiene separados los resultados que todavía solo fueron descubiertos en un índice oficial.
+- `investigar_derecho_pr` — punto de entrada multi-fuente histórico. Coordina candidatos del Tribunal Supremo y Tribunal de Apelaciones y orienta hacia fuentes oficiales adicionales.
 - `buscar_decisiones_apelaciones` — busca determinaciones finales públicas del Tribunal de Apelaciones por año y texto visible en el índice oficial.
 - `buscar_biblioteca_juridica` — busca enlaces visibles en la Biblioteca Jurídica Virtual del Departamento de Estado.
 - `buscar_decisiones_laborales` — descubre decisiones y órdenes públicas de la Junta de Relaciones del Trabajo.
 - `buscar_actualidad_juridica` — busca noticias/análisis públicos de Microjuris Al Día y los marca expresamente como **fuente secundaria**.
 - `catalogo_fuentes_juridicas` — muestra las colecciones integradas y su jerarquía.
 - `estado_investigacion_juridica` — diagnóstico de la capa ampliada.
+
+`buscar_mejores_autoridades` aplica **niveles de verificación**. Una autoridad cuyo texto primario fue leído y verificado puede entrar al ranking principal. Un resultado localizado únicamente en un índice o portal oficial se devuelve como `candidato_primario_por_verificar` y **no** se presenta como holding, texto estatutario vigente o regla de derecho confirmada. Una noticia pública se mantiene en un tercer nivel secundario de descubrimiento/contexto.
 
 Las herramientas existentes `opciones_busqueda` y `estado` continúan disponibles por compatibilidad con la etapa original del proyecto.
 
@@ -156,7 +159,7 @@ Ejemplo de configuración local:
   "mcpServers": {
     "puerto-rico-investigacion-juridica": {
       "command": "/RUTA/AL/REPO/.venv/bin/python",
-      "args": ["/RUTA/AL/REPO/smart_server.py"]
+      "args": ["/RUTA/AL/REPO/mixed_server.py"]
     }
   }
 }
@@ -167,12 +170,12 @@ En Windows usa `.venv\\Scripts\\python.exe`.
 ### Claude Code
 
 ```bash
-claude mcp add puerto-rico-investigacion-juridica -- /RUTA/AL/REPO/.venv/bin/python /RUTA/AL/REPO/smart_server.py
+claude mcp add puerto-rico-investigacion-juridica -- /RUTA/AL/REPO/.venv/bin/python /RUTA/AL/REPO/mixed_server.py
 ```
 
 ## ChatGPT / servidor remoto
 
-El repositorio incluye `remote_server.py`, `Dockerfile` y `render.yaml`. El servidor remoto expone el mismo conjunto de herramientas — incluida la búsqueda relevance-first — mediante Streamable HTTP en:
+El repositorio incluye `remote_server.py`, `Dockerfile` y `render.yaml`. El servidor remoto expone el mismo conjunto de herramientas — incluidas la búsqueda relevance-first y la orquestación multi-fuente — mediante Streamable HTTP en:
 
 ```text
 https://TU-DOMINIO/mcp
@@ -200,6 +203,7 @@ El MCP debe observar estas reglas:
 | Colección | Estado |
 |---|---|
 | Tribunal Supremo | ✅ PDF oficial, cita/página/pasaje + loop relevance-first 1997→presente |
+| Orquestación multi-fuente | ✅ Separa ranking verificado de candidatos oficiales pendientes de verificación de contenido |
 | Tribunal de Apelaciones | 🟡 Índice oficial y búsqueda inicial |
 | Leyes / resoluciones conjuntas | 🟡 Portal oficial integrado; profundización pendiente |
 | Reglamentos | 🟡 Portal oficial integrado; vigencia/historial pendiente |
