@@ -1,7 +1,7 @@
 """Remote MCP entrypoint for ChatGPT and other MCP clients.
 
-Uses the same MCP instance and the same tools as server.py, but exposes them
-through Streamable HTTP instead of stdio.
+Uses the expanded Puerto Rico legal research MCP instance and exposes it through
+Streamable HTTP instead of stdio.
 
 Deploy this process behind HTTPS. ChatGPT connects to the resulting /mcp URL.
 """
@@ -12,21 +12,11 @@ import os
 
 from mcp.server.transport_security import TransportSecuritySettings
 
-from server import mcp
+from research_server import mcp
 
 
 def _configure_remote_server() -> None:
-    """Configure the shared FastMCP instance for the HTTP deployment.
-
-    FastMCP v1.28.x reads host/port/path from its settings; ``mcp.run()`` does
-    not accept those as keyword arguments. The shared instance is created by
-    server.py for stdio, so its localhost DNS-rebinding defaults must also be
-    replaced with the public hostname used by the remote deployment.
-
-    Render provides RENDER_EXTERNAL_HOSTNAME automatically. Other providers
-    can supply MCP_ALLOWED_HOSTS (comma-separated). If no public hostname is
-    known, localhost patterns are retained for local remote-server testing.
-    """
+    """Configure the shared FastMCP instance for the HTTP deployment."""
     host = os.getenv("MCP_HOST", "0.0.0.0")
     port = int(os.getenv("PORT", os.getenv("MCP_PORT", "8000")))
 
