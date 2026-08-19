@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: mcp-puerto-rico-sentencias
+    name: mcp-puerto-rico-investigacion-juridica
     runtime: docker
     plan: free
     dockerfilePath: ./Dockerfile
