@@ -1,7 +1,8 @@
 """Expanded Puerto Rico legal research MCP.
 
-This module preserves the tested Tribunal Supremo tools from ``server.py`` and
-adds public-source research tools for other Puerto Rico legal authorities.
+This module preserves the tested Tribunal Supremo logic from ``server.py`` and
+exposes it under a broader MCP identity together with public-source research
+tools for other Puerto Rico legal authorities.
 
 Integrity rule: discovery is not verification. A result is labelled verified
 only when it was found in the identified public source. Secondary-source items
@@ -18,15 +19,17 @@ from urllib.parse import quote_plus, urljoin, urlparse
 
 import httpx
 from bs4 import BeautifulSoup
+from mcp.server.fastmcp import FastMCP
 
 import server as jurisprudencia
-
-# Reuse the same FastMCP instance so all legacy tools remain available.
-mcp = jurisprudencia.mcp
 
 PRODUCT_NAME = "MCP Puerto Rico — Investigación Jurídica"
 PRODUCT_SLUG = "puerto-rico-investigacion-juridica"
 VERSION = "0.7.0"
+
+# New public server identity. The legacy server module remains untouched and is
+# used as a tested implementation library for Tribunal Supremo operations.
+mcp = FastMCP(PRODUCT_SLUG)
 
 APPEALS_INDEX = (
     "https://poderjudicial.pr/tribunal-apelaciones/"
@@ -227,6 +230,53 @@ def _parse_public_search_results(html: str, base_url: str, query: str, maximo: i
     return results[:maximo]
 
 
+# ---------------------------------------------------------------------------
+# Backward-compatible Tribunal Supremo tools, delegated to the tested core.
+# ---------------------------------------------------------------------------
+
+@mcp.tool()
+async def buscar_sentencias(consulta: str, ano: int | None = None, maximo: int = 10) -> dict[str, Any]:
+    """Busca sentencias y opiniones del Tribunal Supremo de Puerto Rico."""
+    return await jurisprudencia.buscar_sentencias(consulta, ano, maximo)
+
+
+@mcp.tool()
+async def investigar_sentencias(consulta: str, anos: str = "2026,2025,2024,2023,2022,2021,2020,2019,2018,2017,2016,2015,2014,2013,2012,2011,2010,2009,2008,2007,2006,2005,2004,2003,2002,2001,2000,1999,1998", maximo: int = 5) -> dict[str, Any]:
+    """Encuentra autoridades TSPR verificables por contenido del documento."""
+    return await jurisprudencia.investigar_sentencias(consulta, anos, maximo)
+
+
+@mcp.tool()
+async def buscar_por_cita(cita: str) -> dict[str, Any]:
+    """Localiza una cita TSPR exacta sin sustituir citas inexistentes."""
+    return await jurisprudencia.buscar_por_cita(cita)
+
+
+@mcp.tool()
+async def leer_sentencia(url: str, terminos: str = "", max_parrafos: int = 8) -> dict[str, Any]:
+    """Lee una sentencia pública y devuelve pasajes extraídos de la fuente."""
+    return await jurisprudencia.leer_sentencia(url, terminos, max_parrafos)
+
+
+@mcp.tool()
+def opciones_busqueda(consulta: str = "", campo: str = "fuentes") -> dict[str, Any]:
+    """Explica las fuentes y filtros del núcleo jurisprudencial."""
+    return jurisprudencia.opciones_busqueda(consulta, campo)
+
+
+@mcp.tool()
+def estado() -> dict[str, Any]:
+    """Compatibilidad con el diagnóstico histórico del núcleo de sentencias."""
+    base = jurisprudencia.estado()
+    base["producto_actual"] = PRODUCT_NAME
+    base["version_producto"] = VERSION
+    return base
+
+
+# ---------------------------------------------------------------------------
+# Expanded research tools.
+# ---------------------------------------------------------------------------
+
 @mcp.tool()
 def catalogo_fuentes_juridicas() -> dict[str, Any]:
     """Lista las colecciones públicas integradas y su jerarquía de fuente."""
@@ -270,13 +320,7 @@ async def buscar_decisiones_apelaciones(consulta: str, ano: int = 2026, maximo: 
 
 @mcp.tool()
 async def buscar_biblioteca_juridica(consulta: str, maximo: int = 10) -> dict[str, Any]:
-    """Busca enlaces visibles en la Biblioteca Jurídica Virtual del Departamento de Estado.
-
-    La herramienta cubre el portal público que organiza leyes, resoluciones
-    conjuntas, reglamentos, órdenes ejecutivas, decretos y proclamas. Solo
-    devuelve enlaces que aparecen en la fuente; no fabrica número, título ni
-    vigencia de una norma.
-    """
+    """Busca enlaces visibles en la Biblioteca Jurídica Virtual del Departamento de Estado."""
     maximo = max(1, min(int(maximo), 25))
     try:
         response = await _fetch(STATE_LIBRARY)
@@ -420,7 +464,8 @@ def estado_investigacion_juridica() -> dict[str, Any]:
         "producto": PRODUCT_NAME,
         "slug": PRODUCT_SLUG,
         "version": VERSION,
-        "servidor_base": "puerto-rico-sentencias (compatibilidad)",
+        "servidor_mcp": PRODUCT_SLUG,
+        "servidor_base_interno": "puerto-rico-sentencias (núcleo de compatibilidad)",
         "colecciones": [
             "Tribunal Supremo",
             "Tribunal de Apelaciones",
