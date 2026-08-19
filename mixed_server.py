@@ -18,6 +18,10 @@ from typing import Any
 import research_server
 import smart_server
 
+VERSION = "0.9.0"
+# The shared status tools live in research_server; align their runtime version
+# with the package entrypoint without rewriting the mature source collectors.
+research_server.VERSION = VERSION
 mcp = smart_server.mcp
 
 
@@ -107,6 +111,8 @@ async def mixed_authority_research(
             errors[label] = str(value["error"])
 
     return {
+        "producto": research_server.PRODUCT_NAME,
+        "version": VERSION,
         "consulta": argumento,
         "estrategia": "multi_source_with_verification_tiers",
         "autoridades_verificadas": verified[:maximo],
