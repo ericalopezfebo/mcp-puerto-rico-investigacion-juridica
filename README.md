@@ -15,6 +15,7 @@ El repositorio y el paquete Python se llaman `mcp-puerto-rico-investigacion-juri
 
 - **Tribunal Supremo de Puerto Rico** — opiniones, sentencias y resoluciones públicas.
 - **Tribunal de Apelaciones** — determinaciones finales públicas disponibles desde enero de 2015, salvo casos confidenciales.
+- **SUTRA / Oficina de Servicios Legislativos** — leyes, historial legislativo y relaciones explícitas de enmienda/derogación usadas para verificar vigencia legislativa.
 - **Biblioteca Jurídica Virtual del Departamento de Estado** — leyes, resoluciones conjuntas, reglamentos, órdenes ejecutivas, decretos y proclamas disponibles públicamente.
 - **Junta de Relaciones del Trabajo de Puerto Rico (JRT)** — decisiones y órdenes, órdenes administrativas y otros documentos públicos laborales; el MCP ya puede verificar por texto los PDFs gubernamentales descubiertos en esta colección.
 
@@ -22,6 +23,7 @@ El repositorio y el paquete Python se llaman `mcp-puerto-rico-investigacion-juri
 
 - **Microjuris Al Día** — búsqueda y contenido público para descubrir noticias, cambios y temas recientes.
 - **LexJuris — menús públicos de jurisprudencia por año** — se usan únicamente como índice secundario de materia/resumen para priorizar candidatos en búsquedas globales de jurisprudencia.
+- **CodeXPR** — puede utilizarse como índice secundario de descubrimiento cuando el contenido sea público, pero nunca como prueba final de vigencia.
 
 **No se accede a productos premium, no se usan credenciales, no se evade ningún paywall y no se replica ninguna base de datos propietaria.** Una fuente secundaria nunca sustituye la sentencia, ley, reglamento u otra autoridad primaria correspondiente.
 
@@ -67,6 +69,37 @@ La fecha **no suma puntos por sí sola**. Una decisión de 2001 puede quedar por
 
 La capa pública de descubrimiento actualmente cubre 1997 en adelante. La herramienta no afirma cobertura exhaustiva de jurisprudencia anterior a 1997. Autoridades más antiguas pueden aparecer si se descubren a través de referencias verificables, pero ampliar esa cobertura histórica sigue pendiente.
 
+### Vigencia e historial legislativo
+
+- `construir_historial_legislativo` — recibe una ley como `Ley 80-1976` y busca automáticamente en el portal público de SUTRA leyes posteriores que la enmienden, deroguen, sustituyan o reenumeren. Cada relación candidata debe confirmarse en la página oficial de detalle de SUTRA antes de entrar al grafo.
+- `verificar_vigencia_ley` — ejecuta el historial automático y devuelve un estado conservador. Detecta derogaciones o enmiendas explícitas; **no convierte la ausencia de resultados en una afirmación de vigencia**.
+- `verificar_vigencia_legislativa` — inspecciona una URL oficial concreta de SUTRA/OSL o Departamento de Estado y extrae señales explícitas sin adivinar.
+- `politica_vigencia_fuentes` — expone la jerarquía de fuentes y la regla de no usar CodeXPR/LexJuris/Microjuris como prueba final de vigencia.
+
+```text
+LEY / ARTÍCULO
+     ↓
+NORMALIZAR IDENTIFICADOR (ej. Ley 55-2020)
+     ↓
+BÚSQUEDA PÚBLICA EN SUTRA
+     ↓
+CANDIDATOS DE LEYES POSTERIORES
+     ↓
+ABRIR DETALLE OFICIAL DE CADA CANDIDATO
+     ↓
+EXTRAER RELACIONES EXPLÍCITAS
+  ├─ enmienda
+  ├─ deroga
+  ├─ sustituye
+  └─ reenumera
+     ↓
+GRAFO DE AFECTACIONES
+     ↓
+ESTADO CONSERVADOR DE VIGENCIA
+```
+
+La ausencia de una derogación en el grafo **no equivale a `vigente`**. Para una afirmación positiva de texto vigente todavía debe confirmarse el texto oficial aplicable/consolidado cuando exista.
+
 ### Investigación jurídica ampliada
 
 - `buscar_mejores_autoridades` — **punto de entrada preferido para una pregunta que pueda requerir varias clases de autoridad.** Coordina el Top-K TSPR verificado con legislación/reglamentos, decisiones administrativas y otras colecciones públicas, manteniendo separados los resultados que todavía solo fueron descubiertos en un índice oficial.
@@ -90,6 +123,8 @@ Las herramientas existentes `opciones_busqueda` y `estado` continúan disponible
 
 > “Tengo un argumento sobre pensión alimenticia. Busca las mejores 5 decisiones del Tribunal Supremo de Puerto Rico que puedan apoyarlo. No favorezcas casos recientes por ser recientes. Para cada resultado dame cita, caso, número, fecha, página, URL oficial y pasaje exacto.”
 
+> “Verifica si la Ley 80-1976 y el artículo que quiero citar siguen sin una derogación o enmienda posterior relevante. Construye primero el historial legislativo en SUTRA y no presumas vigencia si la fuente oficial no lo demuestra.”
+
 > “Investiga la obligación alimentaria de los padres en Puerto Rico. Dame las mejores autoridades primarias verificables: ley, reglamento aplicable si existe y jurisprudencia. Para cada caso cita la página y el pasaje exacto.”
 
 > “Busca decisiones y órdenes verificables de la Junta de Relaciones del Trabajo sobre negociación colectiva y deber de justa representación. Dame el PDF oficial y los pasajes exactos.”
@@ -106,7 +141,7 @@ PREGUNTA JURÍDICA
 DETECCIÓN DE MATERIA / TIPO DE AUTORIDAD
         ↓
 FUENTES PRIMARIAS OFICIALES
-  ├─ Constitución / leyes
+  ├─ Constitución / leyes / SUTRA
   ├─ Reglamentos
   ├─ Tribunal Supremo
   ├─ Tribunal de Apelaciones
@@ -116,7 +151,7 @@ DESCUBRIMIENTO / PRIORIZACIÓN
         ↓
 LECTURA DEL DOCUMENTO FUENTE
         ↓
-VERIFICACIÓN
+VERIFICACIÓN + VIGENCIA CUANDO APLICA
         ↓
 PASAJES + PÁGINA + URL + METADATOS
         ↓
@@ -182,7 +217,7 @@ claude mcp add puerto-rico-investigacion-juridica -- /RUTA/AL/REPO/.venv/bin/pyt
 
 ## ChatGPT / servidor remoto
 
-El repositorio incluye `remote_server.py`, `Dockerfile` y `render.yaml`. El servidor remoto expone el mismo conjunto de herramientas — incluidas la búsqueda relevance-first y la orquestación multi-fuente — mediante Streamable HTTP en:
+El repositorio incluye `remote_server.py`, `Dockerfile` y `render.yaml`. El servidor remoto expone el mismo conjunto de herramientas — incluidas la búsqueda relevance-first, la orquestación multi-fuente y el historial legislativo automático — mediante Streamable HTTP en:
 
 ```text
 https://TU-DOMINIO/mcp
@@ -201,9 +236,10 @@ El MCP debe observar estas reglas:
 5. **Una coincidencia temática no equivale a holding.**
 6. **No presentar una noticia como derecho vigente.**
 7. **No determinar vigencia de una ley/reglamento sin evidencia suficiente.**
-8. **Si la evidencia no alcanza, devolver menos resultados.**
-9. **No acceder ni intentar eludir contenido de suscripción.**
-10. **Preferir “no verificado” a una conclusión plausible pero no demostrada.**
+8. **No interpretar ausencia de derogación detectada como prueba automática de vigencia.**
+9. **Si la evidencia no alcanza, devolver menos resultados o `no_determinada`.**
+10. **No acceder ni intentar eludir contenido de suscripción.**
+11. **Preferir “no verificado” a una conclusión plausible pero no demostrada.**
 
 ## Estado de cobertura
 
@@ -212,9 +248,11 @@ El MCP debe observar estas reglas:
 | Tribunal Supremo | ✅ PDF oficial, cita/página/pasaje + loop relevance-first 1997→presente |
 | Orquestación multi-fuente | ✅ Separa ranking verificado de candidatos oficiales pendientes de verificación de contenido |
 | Lector genérico de autoridad primaria | ✅ HTML/PDF con pasajes verificables en hosts primarios autorizados |
+| Historial legislativo SUTRA | ✅ Grafo automático de enmiendas/derogaciones explícitas con verificación de detalle oficial |
+| Vigencia legislativa positiva | 🟡 Conservadora: detecta afectaciones; confirmar texto oficial consolidado sigue siendo requisito para afirmar vigencia positiva |
 | Decisiones administrativas laborales (JRT) | ✅ Descubrimiento global acotado + verificación de texto en PDFs gubernamentales |
 | Tribunal de Apelaciones | 🟡 Índice oficial y búsqueda inicial; profundización por materia/documento pendiente |
-| Leyes / resoluciones conjuntas | 🟡 Portal oficial integrado; búsqueda estructurada/texto/vigencia pendiente |
+| Leyes / resoluciones conjuntas | 🟡 Portal oficial integrado + historial SUTRA; búsqueda estructurada/texto consolidado pendiente |
 | Reglamentos | 🟡 Portal oficial integrado; texto/vigencia/historial pendiente |
 | Órdenes ejecutivas | 🟡 Portal oficial integrado |
 | Autoridad federal | ⏳ Próxima expansión |
@@ -225,7 +263,7 @@ El MCP debe observar estas reglas:
 
 El **código de este repositorio** se publica bajo licencia MIT. Eso no convierte en MIT los documentos, sitios o contenido de terceros a los que el MCP enlaza o consulta. Cada fuente mantiene sus propios términos, derechos y políticas.
 
-Este proyecto no está afiliado ni respaldado por el Poder Judicial de Puerto Rico, el Departamento de Estado, la Junta de Relaciones del Trabajo, LexJuris ni Microjuris.
+Este proyecto no está afiliado ni respaldado por el Poder Judicial de Puerto Rico, la Oficina de Servicios Legislativos, el Departamento de Estado, la Junta de Relaciones del Trabajo, CodeXPR, LexJuris ni Microjuris.
 
 ## Aviso
 
