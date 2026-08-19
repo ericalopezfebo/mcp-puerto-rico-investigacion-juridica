@@ -41,6 +41,15 @@ def _clean(text: str) -> str:
     return research_server.jurisprudencia.clean(text or "")
 
 
+async def _fetch_official(url: str):
+    if not _official_currency_url(url):
+        raise ValueError("URL no permitida para verificación de vigencia")
+    client = await research_server.jurisprudencia.get_http_client()
+    response = await client.get(url)
+    response.raise_for_status()
+    return response
+
+
 def parse_sutra_amendment_page(html: str, ley_objetivo: str = "", articulo: str = "") -> dict[str, Any]:
     """Extract only explicit amendment/repeal signals visible on a SUTRA page.
 
@@ -68,13 +77,11 @@ def parse_sutra_amendment_page(html: str, ley_objetivo: str = "", articulo: str 
             if target and target not in snorm and target not in normalized[max(0, match.start()-240):match.end()+240]:
                 continue
             if article and article not in snorm:
-                # Keep law-level signals if an article was requested, but mark scope.
                 scope = "ley; articulo solicitado no confirmado en este fragmento"
             else:
                 scope = "articulo" if article else "ley"
             signals.append({"tipo": kind, "alcance": scope, "texto_visible": snippet[:500]})
 
-    # Deduplicate visible signals without inventing chronology or legal effect.
     unique: list[dict[str, str]] = []
     seen: set[tuple[str, str]] = set()
     for item in signals:
@@ -126,7 +133,7 @@ async def verificar_vigencia_legislativa(
         }
 
     try:
-        response = await research_server._fetch(url_oficial)
+        response = await _fetch_official(url_oficial)
         parsed = parse_sutra_amendment_page(response.text, ley, articulo)
         parsed.update({
             "ley": ley,
