@@ -53,11 +53,15 @@ class LegislativeEdge:
 
 
 def parse_law_id(value: str) -> LawId | None:
-    """Normalize common Puerto Rico act-number formats to ``Ley N-YYYY``."""
-    text = research_server.jurisprudencia.normalize_text(value or "")
+    """Normalize common Puerto Rico act-number formats to ``Ley N-YYYY``.
+
+    Do not use ``normalize_text`` here because that helper intentionally removes
+    punctuation (including the hyphen that separates act number and year).
+    """
+    text = research_server.jurisprudencia.clean(value or "")
     patterns = [
-        r"\bley\s+(?:num(?:ero)?\s*)?(\d{1,4})\s*[-/]\s*((?:19|20)\d{2})\b",
-        r"\bley\s+(?:num(?:ero)?\s*)?(\d{1,4}).{0,50}\b((?:19|20)\d{2})\b",
+        r"\b[Ll]ey\s+(?:[Nn][uú]m(?:ero)?\.?\s*)?(\d{1,4})\s*[-/]\s*((?:19|20)\d{2})\b",
+        r"\b[Ll]ey\s+(?:[Nn][uú]m(?:ero)?\.?\s*)?(\d{1,4}).{0,60}\b((?:19|20)\d{2})\b",
     ]
     for pattern in patterns:
         match = re.search(pattern, text, re.I)
@@ -176,9 +180,6 @@ def parse_sutra_law_detail(html: str, url: str, target: LawId) -> dict[str, Any]
     if title_match:
         title = research_server.jurisprudencia.clean(title_match.group(1))[:1800]
 
-    # Prefer SUTRA's explicit Enmienda(s) block. Fall back to the title only
-    # when the block is absent; the candidate still must explicitly identify
-    # the target law and relation.
     amendment_block = _amendment_block_text(soup)
     relation_text = amendment_block or title
     relations = _extract_target_relations(relation_text, target)
@@ -259,8 +260,6 @@ async def _verify_candidates(target: LawId, urls: list[str]) -> list[Legislative
                 return []
             if not parsed["mentions_target"] or not parsed["law"]:
                 return []
-            # The target law's own SUTRA page describes creation/history, not a
-            # later act affecting itself. Excluding it prevents false self-edges.
             if research_server.jurisprudencia.normalize_text(parsed["law"]) == research_server.jurisprudencia.normalize_text(target.canonical):
                 return []
             out: list[LegislativeEdge] = []
