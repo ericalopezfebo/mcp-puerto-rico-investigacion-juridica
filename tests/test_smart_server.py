@@ -125,6 +125,64 @@ async def test_relevance_loop_can_rank_older_case_above_recent_case(monkeypatch)
     assert result["orden"] == "relevancia verificada; sin bono por recencia"
 
 
+@pytest.mark.asyncio
+async def test_topk_does_not_stop_before_late_stronger_candidate(monkeypatch):
+    candidates = []
+    for i in range(1, 8):
+        year = 2026 if i < 7 else 2012
+        candidates.append(
+            smart_server.DiscoveryCandidate(
+                citation=f"{year} TSPR {i}",
+                year=year,
+                title=f"Caso {i}",
+                context="pensión alimenticia",
+                discovery_url=f"https://www.lexjuris.com/{i}",
+                discovery_score=float(20 - i),
+            )
+        )
+
+    async def fake_discovery(query, years):
+        return list(candidates)
+
+    async def fake_verify(candidate, query):
+        # The final candidate has weaker discovery metadata but much stronger
+        # relevance in the official document and must be allowed to displace
+        # an early Top-2 result.
+        rel = 25.0 if candidate.year == 2012 else 3.0
+        decision = server.Decision(
+            title=candidate.title,
+            url=f"https://dts.poderjudicial.pr/ts/{candidate.year}/x.pdf",
+            source="Poder Judicial de Puerto Rico",
+            citation=candidate.citation,
+            snippet="[página 7] La pensión alimenticia y la obligación alimentaria son materia central de la controversia.",
+            relevance_score=rel,
+            verified=True,
+            verification_status="verified_source_identifier",
+        )
+        return decision, smart_server._verified_rank(decision, candidate.discovery_score, query)
+
+    monkeypatch.setattr(smart_server, "_global_discovery", fake_discovery)
+    monkeypatch.setattr(smart_server, "_verify_candidate", fake_verify)
+    monkeypatch.setattr(smart_server, "VERIFY_BATCH_SIZE", 2)
+    monkeypatch.setattr(smart_server, "MAX_OFFICIAL_VERIFICATIONS", 12)
+    monkeypatch.setattr(smart_server, "STABLE_ROUNDS_REQUIRED", 2)
+
+    result = await smart_server.relevance_first_search(
+        "pensión alimenticia", maximo=2, ano_desde=1997, ano_hasta=2026
+    )
+
+    assert result["resultados"][0]["citation"] == "2012 TSPR 7"
+    assert result["documentos_oficiales_verificados"] >= 7
+    assert result["minimo_verificaciones_antes_estabilidad"] == 10
+
+
+def test_minimum_verifications_scales_with_requested_topk(monkeypatch):
+    monkeypatch.setattr(smart_server, "VERIFY_BATCH_SIZE", 6)
+    monkeypatch.setattr(smart_server, "MAX_OFFICIAL_VERIFICATIONS", 36)
+    assert smart_server._minimum_verifications_before_stability(5) == 25
+    assert smart_server._minimum_verifications_before_stability(10) == 36
+
+
 def test_citation_chain_extractor_deduplicates():
     text = "Véase 2012 TSPR 160 y 2012 TSPR 160; también 2009 TSPR 187."
     assert smart_server._all_tspr_citations(text) == ["2012 TSPR 160", "2009 TSPR 187"]

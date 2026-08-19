@@ -25,7 +25,7 @@ import server as jurisprudencia
 
 PRODUCT_NAME = "MCP Puerto Rico — Investigación Jurídica"
 PRODUCT_SLUG = "puerto-rico-investigacion-juridica"
-VERSION = "0.7.0"
+VERSION = "0.8.1"
 
 # New public server identity. The legacy server module remains untouched and is
 # used as a tested implementation library for Tribunal Supremo operations.

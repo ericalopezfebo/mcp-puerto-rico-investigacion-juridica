@@ -1,14 +1,14 @@
 """Relevance-first MCP layer for Puerto Rico legal research.
 
 This module extends ``research_server`` without replacing its verified-source
-core.  The main addition is a server-side research loop for requests such as
+core. The main addition is a server-side research loop for requests such as
 "find the best five TSPR decisions for this argument".
 
-The loop does NOT walk years newest-to-oldest.  It first builds a global
+The loop does NOT walk years newest-to-oldest. It first builds a global
 candidate pool from public, non-paywalled LexJuris year menus (used only as a
 secondary discovery index), ranks candidates by topical signal, then verifies
 and re-ranks only the strongest candidates against the official Poder Judicial
-PDFs.  Final authorities are returned only when official verification succeeds.
+PDFs. Final authorities are returned only when official verification succeeds.
 """
 from __future__ import annotations
 
@@ -64,7 +64,7 @@ def _all_tspr_citations(text: str) -> list[str]:
 def _discovery_score(blob: str, query: str) -> float:
     """Cheap topical score used only to decide which official PDFs to verify.
 
-    It never establishes legal relevance by itself.  There is deliberately no
+    It never establishes legal relevance by itself. There is deliberately no
     recency/year bonus: a 2001 case can outrank a 2026 case if its public matter
     and summary match the legal issue more closely.
     """
@@ -88,7 +88,7 @@ def _discovery_score(blob: str, query: str) -> float:
 def _parse_lexjuris_year_menu(html: str, year: int, query: str, base_url: str) -> list[DiscoveryCandidate]:
     """Parse public year-menu entries containing matter/summary text.
 
-    LexJuris is discovery-only here.  Nothing parsed by this function is
+    LexJuris is discovery-only here. Nothing parsed by this function is
     returned as verified authority until ``citation_search`` confirms the exact
     citation against the official Poder Judicial source and reads its PDF.
     """
@@ -182,8 +182,8 @@ async def _global_discovery(query: str, years: list[int]) -> list[DiscoveryCandi
 def _verified_rank(decision: jurisprudencia.Decision, discovery_score: float, query: str) -> float:
     """Rank verified decisions without a recency bonus.
 
-    Source-text relevance dominates discovery metadata.  Explicitly tangential
-    language is penalized.  This is a ranking aid, not a holding classifier.
+    Source-text relevance dominates discovery metadata. Explicitly tangential
+    language is penalized. This is a ranking aid, not a holding classifier.
     """
     snippet = jurisprudencia.normalize_text(decision.snippet)
     score = float(decision.relevance_score) * 4.0 + float(discovery_score)
@@ -215,6 +215,27 @@ async def _verify_candidate(candidate: DiscoveryCandidate, query: str) -> tuple[
     return decision, _verified_rank(decision, candidate.discovery_score, query)
 
 
+def _minimum_verifications_before_stability(maximo: int) -> int:
+    """Avoid declaring Top-K stable after seeing only the first few candidates.
+
+    Discovery metadata is useful but imperfect. For a requested Top-K we require
+    a meaningful sample of the globally ranked candidate pool before the stable-
+    rounds rule is allowed to terminate the loop. This is intentionally bounded
+    by MAX_OFFICIAL_VERIFICATIONS so latency remains predictable.
+    """
+    requested = max(1, int(maximo))
+    target = max(VERIFY_BATCH_SIZE * 3, requested * 5)
+    return min(MAX_OFFICIAL_VERIFICATIONS, target)
+
+
+def _queue_sort_key(candidate: DiscoveryCandidate) -> tuple[float, int, str]:
+    # Citation-chain discoveries get a small tie-break preference because they
+    # come from text already verified as relevant, but discovery_score remains
+    # the primary signal and there is still no recency bonus.
+    chain_priority = 0 if candidate.discovered_by == "citation_chain" else 1
+    return (-candidate.discovery_score, chain_priority, candidate.citation)
+
+
 async def relevance_first_search(
     query: str,
     maximo: int = 5,
@@ -228,13 +249,14 @@ async def relevance_first_search(
     years = list(range(ano_desde, ano_hasta + 1))
 
     candidates = await _global_discovery(query, years)
-    queue: list[DiscoveryCandidate] = list(candidates)
+    queue: list[DiscoveryCandidate] = sorted(candidates, key=_queue_sort_key)
     queued = {_citation_key(c.citation) for c in queue}
     verified: dict[str, tuple[jurisprudencia.Decision, float, DiscoveryCandidate]] = {}
     verifications = 0
     rounds = 0
     stable_rounds = 0
     previous_top: tuple[str, ...] = ()
+    minimum_before_stability = _minimum_verifications_before_stability(maximo)
 
     while queue and verifications < MAX_OFFICIAL_VERIFICATIONS:
         rounds += 1
@@ -250,6 +272,7 @@ async def relevance_first_search(
 
         checked = await asyncio.gather(*(one(c) for c in batch))
         verifications += len(batch)
+        added_chain_candidate = False
 
         for candidate, (decision, score) in checked:
             if decision is None:
@@ -282,10 +305,15 @@ async def relevance_first_search(
                         discovered_by="citation_chain",
                     )
                 )
+                added_chain_candidate = True
+
+        if added_chain_candidate:
+            queue.sort(key=_queue_sort_key)
 
         ranked = sorted(verified.values(), key=lambda item: (-item[1], item[0].citation or item[0].title))
         top_keys = tuple(_citation_key(item[0].citation) for item in ranked[:maximo])
-        if len(top_keys) >= maximo and top_keys == previous_top:
+        stability_is_eligible = verifications >= minimum_before_stability
+        if stability_is_eligible and len(top_keys) >= maximo and top_keys == previous_top:
             stable_rounds += 1
         else:
             stable_rounds = 0
@@ -311,6 +339,7 @@ async def relevance_first_search(
         "anos_descubrimiento": [ano_desde, ano_hasta],
         "candidatos_globales": len(candidates),
         "documentos_oficiales_verificados": verifications,
+        "minimo_verificaciones_antes_estabilidad": minimum_before_stability,
         "rondas": rounds,
         "ranking_estabilizado": stable_rounds >= STABLE_ROUNDS_REQUIRED,
         "resultados": resultados,
