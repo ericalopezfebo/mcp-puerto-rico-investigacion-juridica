@@ -6,7 +6,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 WORKDIR /app
 
 COPY pyproject.toml README.md LICENSE ./
-COPY server.py remote_server.py ./
+COPY server.py research_server.py remote_server.py ./
 
 RUN pip install --no-cache-dir .
 
