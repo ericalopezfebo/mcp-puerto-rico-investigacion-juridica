@@ -2,11 +2,11 @@
 
 ## Investigación jurídica verificable desde Claude, ChatGPT y otros clientes MCP
 
-**MCP Puerto Rico — Investigación Jurídica** amplía el proyecto original de sentencias hacia una plataforma abierta de investigación jurídica de Puerto Rico. El objetivo es localizar y verificar **jurisprudencia, legislación, reglamentos, órdenes ejecutivas, decisiones administrativas y actualidad jurídica pública** sin convertir al modelo de lenguaje en fuente de autoridad.
+**MCP Puerto Rico — Investigación Jurídica** es una plataforma abierta de investigación jurídica de Puerto Rico. El objetivo es localizar y verificar **jurisprudencia, legislación, reglamentos, órdenes ejecutivas, decisiones administrativas y actualidad jurídica pública** sin convertir al modelo de lenguaje en fuente de autoridad.
 
 > **Regla central: source-first / zero legal hallucination.** Si una autoridad, cita, nombre, número de caso, fecha, página o pasaje no puede verificarse en una fuente identificable, el MCP no debe inventarlo ni rellenarlo.
 
-El repositorio conserva por ahora el slug histórico `mcp-puerto-rico-sentencias` para no romper enlaces, forks ni instalaciones existentes. El **nombre del producto y del paquete Python** pasa a ser `mcp-puerto-rico-investigacion-juridica`. Los comandos anteriores se mantienen como aliases de compatibilidad.
+El repositorio y el paquete Python se llaman `mcp-puerto-rico-investigacion-juridica`. Los comandos históricos `mcp-puerto-rico-sentencias` se mantienen como aliases de compatibilidad para instalaciones existentes.
 
 ## Qué cubre
 
@@ -98,14 +98,14 @@ Ver [`docs/taxonomia-autoridades.md`](docs/taxonomia-autoridades.md).
 Requiere Python 3.10+ y Git.
 
 ```bash
-git clone https://github.com/ericalopezfebo/mcp-puerto-rico-sentencias.git
-cd mcp-puerto-rico-sentencias
+git clone https://github.com/ericalopezfebo/mcp-puerto-rico-investigacion-juridica.git
+cd mcp-puerto-rico-investigacion-juridica
 python -m venv .venv
 source .venv/bin/activate   # Windows: .venv\Scripts\activate
 pip install -e .
 ```
 
-Nuevo comando:
+Comando principal:
 
 ```bash
 mcp-puerto-rico-investigacion-juridica
@@ -148,13 +148,7 @@ El repositorio incluye `remote_server.py`, `Dockerfile` y `render.yaml`. El serv
 https://TU-DOMINIO/mcp
 ```
 
-La instancia histórica de demostración puede continuar utilizando el dominio anterior mientras se migra el branding:
-
-```text
-https://mcp-puerto-rico-sentencias.onrender.com/mcp
-```
-
-El endpoint de demostración no tiene SLA y un plan gratuito puede sufrir arranque en frío o timeouts.
+Una instancia desplegada con el nombre histórico puede continuar usando temporalmente su dominio anterior durante la migración de branding. El endpoint de demostración no tiene SLA y un plan gratuito puede sufrir arranque en frío o timeouts.
 
 ## Integridad jurídica
 
