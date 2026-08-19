@@ -17,10 +17,9 @@ from typing import Any
 
 import research_server
 import smart_server
+import authority_reader  # registers leer_autoridad_publica on the shared MCP
 
-VERSION = "0.9.0"
-# The shared status tools live in research_server; align their runtime version
-# with the package entrypoint without rewriting the mature source collectors.
+VERSION = "0.9.1"
 research_server.VERSION = VERSION
 mcp = smart_server.mcp
 
@@ -49,9 +48,9 @@ async def mixed_authority_research(
     """Coordinate the mature TSPR loop with other public-source collectors.
 
     Only source-text-verified authorities enter ``autoridades_verificadas``.
-    Official-index discoveries are returned separately until a later collector
-    verifies their actual document text. This is intentional: source hierarchy
-    must not be confused with evidentiary verification depth.
+    Official-index discoveries are returned separately until their document
+    text is verified. The companion tool ``leer_autoridad_publica`` can perform
+    that source-text verification for an allow-listed candidate URL.
     """
     maximo = max(1, min(int(maximo), 12))
     tspr_limit = min(maximo, 6)
@@ -118,6 +117,7 @@ async def mixed_authority_research(
         "autoridades_verificadas": verified[:maximo],
         "candidatos_primarios_por_verificar": candidates[: maximo * 2],
         "actualidad_secundaria": secondary[:maximo],
+        "herramienta_verificacion_candidatos": "leer_autoridad_publica",
         "regla_ranking": (
             "Solo las autoridades con texto de fuente primaria verificado entran al ranking principal. "
             "Los resultados hallados únicamente en índices o portales oficiales se mantienen como candidatos separados."
@@ -128,8 +128,8 @@ async def mixed_authority_research(
         ),
         "errores_fuente": errors,
         "siguiente_etapa": (
-            "Profundizar lectores de legislación, reglamentos, Tribunal de Apelaciones y decisiones administrativas "
-            "para que sus documentos también puedan competir en el ranking verificado."
+            "Profundizar búsqueda estructurada de la Biblioteca Jurídica Virtual y los índices administrativos para "
+            "que más documentos directos puedan verificarse automáticamente dentro del loop multi-fuente."
         ),
     }
 
