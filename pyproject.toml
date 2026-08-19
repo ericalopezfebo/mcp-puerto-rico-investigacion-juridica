@@ -1,6 +1,6 @@
 [project]
 name = "mcp-puerto-rico-investigacion-juridica"
-version = "0.7.0"
+version = "0.7.1"
 description = "MCP de investigación jurídica de Puerto Rico para buscar y verificar jurisprudencia, legislación, reglamentos, decisiones administrativas y actualidad jurídica pública desde Claude, ChatGPT y otros clientes MCP."
 readme = "README.md"
 license = { file = "LICENSE" }
@@ -19,8 +19,8 @@ dependencies = [
 test = ["pytest>=8.0.0", "pytest-asyncio>=0.23.0"]
 
 [project.urls]
-Repository = "https://github.com/ericalopezfebo/mcp-puerto-rico-sentencias"
-Issues = "https://github.com/ericalopezfebo/mcp-puerto-rico-sentencias/issues"
+Repository = "https://github.com/ericalopezfebo/mcp-puerto-rico-investigacion-juridica"
+Issues = "https://github.com/ericalopezfebo/mcp-puerto-rico-investigacion-juridica/issues"
 
 [project.scripts]
 mcp-puerto-rico-investigacion-juridica = "research_server:main"
