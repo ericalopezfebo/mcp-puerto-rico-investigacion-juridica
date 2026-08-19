@@ -16,7 +16,7 @@ El repositorio y el paquete Python se llaman `mcp-puerto-rico-investigacion-juri
 - **Tribunal Supremo de Puerto Rico** — opiniones, sentencias y resoluciones públicas.
 - **Tribunal de Apelaciones** — determinaciones finales públicas disponibles desde enero de 2015, salvo casos confidenciales.
 - **Biblioteca Jurídica Virtual del Departamento de Estado** — leyes, resoluciones conjuntas, reglamentos, órdenes ejecutivas, decretos y proclamas disponibles públicamente.
-- **Junta de Relaciones del Trabajo de Puerto Rico** — decisiones y órdenes, órdenes administrativas y otros documentos públicos laborales.
+- **Junta de Relaciones del Trabajo de Puerto Rico (JRT)** — decisiones y órdenes, órdenes administrativas y otros documentos públicos laborales; el MCP ya puede verificar por texto los PDFs gubernamentales descubiertos en esta colección.
 
 ### Fuentes secundarias públicas de descubrimiento
 
@@ -69,16 +69,20 @@ La capa pública de descubrimiento actualmente cubre 1997 en adelante. La herram
 
 ### Investigación jurídica ampliada
 
-- `buscar_mejores_autoridades` — **punto de entrada preferido para una pregunta que pueda requerir varias clases de autoridad.** Coordina el Top-K TSPR verificado con legislación/reglamentos, decisiones administrativas y otras colecciones públicas, pero mantiene separados los resultados que todavía solo fueron descubiertos en un índice oficial.
+- `buscar_mejores_autoridades` — **punto de entrada preferido para una pregunta que pueda requerir varias clases de autoridad.** Coordina el Top-K TSPR verificado con legislación/reglamentos, decisiones administrativas y otras colecciones públicas, manteniendo separados los resultados que todavía solo fueron descubiertos en un índice oficial.
+- `leer_autoridad_publica` — recupera y lee un documento de una **fuente primaria pública autorizada** y devuelve pasajes exactos/página cuando están disponibles. No acepta Microjuris como autoridad primaria y no determina automáticamente vigencia, enmiendas o tratamiento posterior.
+- `buscar_decisiones_laborales_verificables` — explora el índice público de la JRT, prioriza candidatos y lee un lote limitado de PDFs gubernamentales en `docs.pr.gov`; solo devuelve resultados cuya relevancia temática aparece en el texto fuente.
 - `investigar_derecho_pr` — punto de entrada multi-fuente histórico. Coordina candidatos del Tribunal Supremo y Tribunal de Apelaciones y orienta hacia fuentes oficiales adicionales.
 - `buscar_decisiones_apelaciones` — busca determinaciones finales públicas del Tribunal de Apelaciones por año y texto visible en el índice oficial.
 - `buscar_biblioteca_juridica` — busca enlaces visibles en la Biblioteca Jurídica Virtual del Departamento de Estado.
-- `buscar_decisiones_laborales` — descubre decisiones y órdenes públicas de la Junta de Relaciones del Trabajo.
+- `buscar_decisiones_laborales` — herramienta histórica de descubrimiento superficial de la JRT; para investigación sustantiva se prefiere `buscar_decisiones_laborales_verificables`.
 - `buscar_actualidad_juridica` — busca noticias/análisis públicos de Microjuris Al Día y los marca expresamente como **fuente secundaria**.
 - `catalogo_fuentes_juridicas` — muestra las colecciones integradas y su jerarquía.
 - `estado_investigacion_juridica` — diagnóstico de la capa ampliada.
 
 `buscar_mejores_autoridades` aplica **niveles de verificación**. Una autoridad cuyo texto primario fue leído y verificado puede entrar al ranking principal. Un resultado localizado únicamente en un índice o portal oficial se devuelve como `candidato_primario_por_verificar` y **no** se presenta como holding, texto estatutario vigente o regla de derecho confirmada. Una noticia pública se mantiene en un tercer nivel secundario de descubrimiento/contexto.
+
+Para consultas de relaciones laborales/colectivas, el orquestador puede activar automáticamente la búsqueda verificada de la JRT. Para una consulta no laboral —por ejemplo, pensión alimenticia— no abre esa colección costosa innecesariamente.
 
 Las herramientas existentes `opciones_busqueda` y `estado` continúan disponibles por compatibilidad con la etapa original del proyecto.
 
@@ -88,9 +92,9 @@ Las herramientas existentes `opciones_busqueda` y `estado` continúan disponible
 
 > “Investiga la obligación alimentaria de los padres en Puerto Rico. Dame las mejores autoridades primarias verificables: ley, reglamento aplicable si existe y jurisprudencia. Para cada caso cita la página y el pasaje exacto.”
 
-> “¿Qué cambió con la doctrina Chevron? Busca primero actualidad jurídica pública para detectar el desarrollo y después identifica la autoridad primaria que realmente cambió la doctrina. No uses el artículo como sustituto de la sentencia.”
+> “Busca decisiones y órdenes verificables de la Junta de Relaciones del Trabajo sobre negociación colectiva y deber de justa representación. Dame el PDF oficial y los pasajes exactos.”
 
-> “Busca decisiones administrativas laborales sobre negociación colectiva y luego identifica jurisprudencia del Tribunal Supremo relacionada.”
+> “¿Qué cambió con la doctrina Chevron? Busca primero actualidad jurídica pública para detectar el desarrollo y después identifica la autoridad primaria que realmente cambió la doctrina. No uses el artículo como sustituto de la sentencia.”
 
 > “Si solo encuentras tres autoridades verificables, devuelve tres. No completes la lista con casos marginales ni inventados.”
 
@@ -108,7 +112,9 @@ FUENTES PRIMARIAS OFICIALES
   ├─ Tribunal de Apelaciones
   └─ Decisiones administrativas
         ↓
-EXTRACCIÓN / IDENTIFICACIÓN
+DESCUBRIMIENTO / PRIORIZACIÓN
+        ↓
+LECTURA DEL DOCUMENTO FUENTE
         ↓
 VERIFICACIÓN
         ↓
@@ -182,7 +188,7 @@ El repositorio incluye `remote_server.py`, `Dockerfile` y `render.yaml`. El serv
 https://TU-DOMINIO/mcp
 ```
 
-Una instancia desplegada con el nombre histórico puede continuar usando temporalmente su dominio anterior durante la migración de branding. El endpoint de demostración no tiene SLA y un plan gratuito puede sufrir arranque en frío o timeouts.
+El CI construye la imagen Docker además de ejecutar los tests/imports, para detectar módulos faltantes antes de publicar cambios. El endpoint de demostración no tiene SLA y un plan gratuito puede sufrir arranque en frío o timeouts.
 
 ## Integridad jurídica
 
@@ -205,11 +211,12 @@ El MCP debe observar estas reglas:
 |---|---|
 | Tribunal Supremo | ✅ PDF oficial, cita/página/pasaje + loop relevance-first 1997→presente |
 | Orquestación multi-fuente | ✅ Separa ranking verificado de candidatos oficiales pendientes de verificación de contenido |
-| Tribunal de Apelaciones | 🟡 Índice oficial y búsqueda inicial |
-| Leyes / resoluciones conjuntas | 🟡 Portal oficial integrado; profundización pendiente |
-| Reglamentos | 🟡 Portal oficial integrado; vigencia/historial pendiente |
+| Lector genérico de autoridad primaria | ✅ HTML/PDF con pasajes verificables en hosts primarios autorizados |
+| Decisiones administrativas laborales (JRT) | ✅ Descubrimiento global acotado + verificación de texto en PDFs gubernamentales |
+| Tribunal de Apelaciones | 🟡 Índice oficial y búsqueda inicial; profundización por materia/documento pendiente |
+| Leyes / resoluciones conjuntas | 🟡 Portal oficial integrado; búsqueda estructurada/texto/vigencia pendiente |
+| Reglamentos | 🟡 Portal oficial integrado; texto/vigencia/historial pendiente |
 | Órdenes ejecutivas | 🟡 Portal oficial integrado |
-| Decisiones administrativas laborales | 🟡 Descubrimiento oficial inicial |
 | Autoridad federal | ⏳ Próxima expansión |
 | Actualidad jurídica pública | 🟡 Microjuris Al Día como fuente secundaria |
 | Grafo de citas / tratamiento posterior | 🟡 Citation chaining TSPR inicial; tratamiento posterior completo pendiente |
