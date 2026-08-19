@@ -9,9 +9,41 @@ import smart_server
 import authority_reader  # registers leer_autoridad_publica
 import jrt_server  # registers verified JRT search
 
-VERSION = "0.10.0"
+VERSION = "0.10.1"
 research_server.VERSION = VERSION
 mcp = smart_server.mcp
+
+# Server-level instructions are sent to MCP clients during initialization.  This
+# makes the routing policy visible even before the model inspects individual
+# tool descriptions, so requests for a Top-N of TSPR decisions are routed to the
+# relevance-first loop rather than to a chronological/year-scoped search.
+MCP_ROUTING_INSTRUCTIONS = """
+REGLA OBLIGATORIA DE ENRUTAMIENTO PARA JURISPRUDENCIA TSPR:
+Cuando el usuario pida "las mejores", "las más relevantes", "Top N", "las que
+más apoyen mi argumento", "las que más ayuden a mi argumento", "las autoridades
+más fuertes", o una expresión equivalente sobre decisiones del Tribunal Supremo
+de Puerto Rico, usa `buscar_mejores_sentencias`.
+
+No uses `investigar_sentencias` ni `buscar_sentencias` como herramienta principal
+para ese tipo de petición, salvo que el usuario haya pedido expresamente limitar
+la investigación a un año o rango de años específico. `buscar_mejores_sentencias`
+debe competir candidatos globalmente por relevancia jurídica verificada, sin
+bono por recencia y sin recorrer años del más reciente al más antiguo para llenar
+un cupo. Si no hay suficientes autoridades verificables y realmente pertinentes,
+devuelve menos resultados en vez de completar el Top-N con casos marginales.
+""".strip()
+
+# FastMCP v1 stores the initialization instructions on its low-level MCP server.
+# Keep any pre-existing instructions and append this product-specific routing
+# rule.  The individual tool docstring in smart_server remains a second routing
+# signal for clients that rely primarily on tool descriptions.
+_low_level_server = getattr(mcp, "_mcp_server", None)
+if _low_level_server is not None:
+    _existing_instructions = getattr(_low_level_server, "instructions", None) or ""
+    if MCP_ROUTING_INSTRUCTIONS not in _existing_instructions:
+        _low_level_server.instructions = (
+            f"{_existing_instructions}\n\n{MCP_ROUTING_INSTRUCTIONS}".strip()
+        )
 
 LABOR_QUERY_HINTS = {
     "negociacion colectiva", "convenio colectivo", "practica ilicita", "practicas ilicitas",
