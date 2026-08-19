@@ -97,6 +97,33 @@ def _extract_enacted_law(text: str) -> str:
     return f"Ley {int(match.group(1))}-{int(match.group(2))}"
 
 
+def _amendment_block_text(soup: BeautifulSoup) -> str:
+    """Return the visible SUTRA Enmienda(s) section when present."""
+    heading = None
+    for tag in soup.find_all(["h1", "h2", "h3", "h4", "strong", "b"]):
+        label = research_server.jurisprudencia.normalize_text(tag.get_text(" ", strip=True))
+        if label.startswith("enmienda"):
+            heading = tag
+            break
+    if heading is None:
+        return ""
+
+    parts: list[str] = []
+    for sibling in heading.next_siblings:
+        if getattr(sibling, "name", None) in {"h1", "h2", "h3", "h4"}:
+            break
+        if hasattr(sibling, "get_text"):
+            text = research_server.jurisprudencia.clean(sibling.get_text(" ", strip=True))
+        else:
+            text = research_server.jurisprudencia.clean(str(sibling))
+        if text:
+            parts.append(text)
+        joined = " ".join(parts)
+        if "Sistema Único de Trámite Legislativo" in joined or len(joined) > 5000:
+            break
+    return research_server.jurisprudencia.clean(" ".join(parts))
+
+
 def _extract_target_relations(text: str, target: LawId) -> list[tuple[str, str]]:
     """Return explicit relation/provision pairs tied to the target law."""
     clean = research_server.jurisprudencia.clean(text or "")
@@ -104,15 +131,13 @@ def _extract_target_relations(text: str, target: LawId) -> list[tuple[str, str]]
     target_forms = [research_server.jurisprudencia.normalize_text(x) for x in _law_tokens(target)]
     relations: list[tuple[str, str]] = []
 
-    # Find windows surrounding an explicit target-law mention. The official
-    # SUTRA detail pages normally place the relation in an Enmienda(s) block.
     for form in target_forms:
         start = 0
         while True:
             idx = normalized.find(form, start)
             if idx < 0:
                 break
-            window = normalized[max(0, idx - 120): idx + len(form) + 420]
+            window = normalized[max(0, idx - 100): idx + len(form) + 360]
             relation = ""
             if re.search(r"\bderog", window):
                 relation = "deroga"
@@ -123,9 +148,10 @@ def _extract_target_relations(text: str, target: LawId) -> list[tuple[str, str]]
             elif re.search(r"\benmiend", window):
                 relation = "enmienda"
             if relation:
+                source_slice = clean[max(0, idx - 100): idx + len(form) + 360]
                 provision_match = re.search(
                     r"((?:art[ií]culo|secci[oó]n|inciso|apartado)s?\s+[^.;]{1,160})",
-                    clean[max(0, idx - 100): idx + len(form) + 420],
+                    source_slice,
                     re.I,
                 )
                 provision = research_server.jurisprudencia.clean(provision_match.group(1)) if provision_match else ""
@@ -149,7 +175,14 @@ def parse_sutra_law_detail(html: str, url: str, target: LawId) -> dict[str, Any]
     title_match = re.search(r"T[ií]tulo:\s*(.+?)(?=Documento\(s\)|Tr[aá]mites|Enmienda\(s\)|$)", text, re.I)
     if title_match:
         title = research_server.jurisprudencia.clean(title_match.group(1))[:1800]
-    relations = _extract_target_relations(text, target)
+
+    # Prefer SUTRA's explicit Enmienda(s) block. Fall back to the title only
+    # when the block is absent; the candidate still must explicitly identify
+    # the target law and relation.
+    amendment_block = _amendment_block_text(soup)
+    relation_text = amendment_block or title
+    relations = _extract_target_relations(relation_text, target)
+
     return {
         "law": enacted,
         "title": title,
@@ -193,8 +226,6 @@ async def _discover_candidate_urls(target: LawId) -> list[str]:
     seen: set[str] = set()
     discovered: list[str] = []
 
-    # First search the public filtered interface using compatible parameter
-    # variants. Stop early once a variant produces useful detail links.
     for page in range(1, MAX_SEARCH_PAGES + 1):
         page_found = False
         for url in _search_url_variants(target, page):
@@ -228,6 +259,10 @@ async def _verify_candidates(target: LawId, urls: list[str]) -> list[Legislative
                 return []
             if not parsed["mentions_target"] or not parsed["law"]:
                 return []
+            # The target law's own SUTRA page describes creation/history, not a
+            # later act affecting itself. Excluding it prevents false self-edges.
+            if research_server.jurisprudencia.normalize_text(parsed["law"]) == research_server.jurisprudencia.normalize_text(target.canonical):
+                return []
             out: list[LegislativeEdge] = []
             for rel in parsed["relations"]:
                 out.append(
@@ -244,10 +279,11 @@ async def _verify_candidates(target: LawId, urls: list[str]) -> list[Legislative
 
     batches = await asyncio.gather(*(one(url) for url in urls[:MAX_DETAIL_FETCHES]))
     edges = [edge for batch in batches for edge in batch]
-    # Stable chronological ordering when the source-law year/number is parseable.
+
     def key(edge: LegislativeEdge) -> tuple[int, int, str]:
         parsed = parse_law_id(edge.source_law)
         return (parsed.year if parsed else 9999, parsed.number if parsed else 9999, edge.url)
+
     return sorted(edges, key=key)
 
 
