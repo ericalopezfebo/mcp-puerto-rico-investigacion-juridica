@@ -8,9 +8,10 @@ import research_server
 import smart_server
 import authority_reader  # registers leer_autoridad_publica
 import jrt_server  # registers verified JRT search
-import vigencia_server  # registers legislative currency safeguards
+import vigencia_server  # registers single-page legislative currency safeguards
+import legislative_graph  # registers automatic SUTRA amendment-history graph
 
-VERSION = "0.11.0"
+VERSION = "0.12.0"
 research_server.VERSION = VERSION
 mcp = smart_server.mcp
 
@@ -35,13 +36,19 @@ devuelve menos resultados en vez de completar el Top-N con casos marginales.
 REGLA OBLIGATORIA DE VIGENCIA LEGISLATIVA:
 Nunca presentes una ley, código, reglamento o disposición como "vigente",
 "actual", "no derogada" o equivalente únicamente porque apareció en CodeXPR,
-LexJuris, Microjuris, un PDF histórico o un índice. Antes de hacer una afirmación
-de vigencia, usa evidencia de fuente oficial disponible —preferentemente SUTRA /
-Oficina de Servicios Legislativos y/o Biblioteca Jurídica Virtual / Departamento
-de Estado— y, cuando tengas una URL oficial concreta, usa
-`verificar_vigencia_legislativa`. Si la evidencia oficial no resuelve la
-vigencia, informa `no_determinada`; nunca presumas vigencia por silencio o por un
-fallo de acceso.
+LexJuris, Microjuris, un PDF histórico o un índice. Cuando la consulta dependa de
+la vigencia de una ley o artículo identificable, usa primero
+`verificar_vigencia_ley` o `construir_historial_legislativo` para buscar
+automáticamente en SUTRA las enmiendas, derogaciones, sustituciones o
+reenumeraciones posteriores. Si ya tienes una URL oficial concreta también puedes
+usar `verificar_vigencia_legislativa` para inspeccionar esa página específica.
+
+SUTRA / Oficina de Servicios Legislativos y la Biblioteca Jurídica Virtual /
+Departamento de Estado son fuentes oficiales preferidas. La ausencia de una
+derogación detectada no equivale a prueba positiva de vigencia; si el historial
+o el texto oficial aplicable no permiten resolverlo, informa `no_determinada`.
+Nunca presumas vigencia por silencio, por ausencia de resultados o por un fallo
+de acceso.
 
 CodeXPR puede usarse como capa de descubrimiento cuando su contenido sea público
 y accesible, pero no como prueba final de vigencia. No uses cookies personales,
@@ -180,7 +187,11 @@ async def mixed_authority_research(
         "actualidad_secundaria": secondary[:maximo],
         "busqueda_laboral_activada": labor_enabled,
         "herramienta_verificacion_candidatos": "leer_autoridad_publica",
-        "herramienta_vigencia_legislativa": "verificar_vigencia_legislativa",
+        "herramientas_vigencia_legislativa": [
+            "verificar_vigencia_ley",
+            "construir_historial_legislativo",
+            "verificar_vigencia_legislativa",
+        ],
         "regla_ranking": (
             "El ranking principal admite solo texto de fuente primaria verificado. Entre clases distintas se conserva "
             "jerarquía de autoridad y dentro de cada clase se usa relevancia textual."
@@ -190,8 +201,8 @@ async def mixed_authority_research(
             "Si un dato no se verificó en el documento fuente, permanece pendiente de verificar."
         ),
         "regla_vigencia": (
-            "Las autoridades legislativas/reglamentarias descubiertas no se presumen vigentes. La vigencia debe verificarse en fuente oficial; "
-            "si no puede resolverse, el estado es no_determinada."
+            "Las autoridades legislativas/reglamentarias descubiertas no se presumen vigentes. Para leyes identificables se usa el historial automático de SUTRA; "
+            "si la vigencia positiva no puede resolverse con evidencia oficial suficiente, el estado sigue siendo no_determinada."
         ),
         "errores_fuente": errors,
         "siguiente_etapa": (
