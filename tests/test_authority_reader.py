@@ -22,6 +22,18 @@ async def test_reader_rejects_unknown_host():
 
 
 @pytest.mark.asyncio
+async def test_reader_rejects_secondary_microjuris_host():
+    # Microjuris Al Día is intentionally allowed elsewhere as secondary
+    # discovery/context, but must never pass through the primary-authority
+    # reader and emerge labelled as a primary source.
+    result = await authority_reader.read_public_authority(
+        "https://aldia.microjuris.com/2024/06/28/chevron/", "Chevron"
+    )
+    assert result["verificado"] is False
+    assert "fuentes primarias" in result["error"].lower()
+
+
+@pytest.mark.asyncio
 async def test_reader_extracts_exact_passage_from_allowed_html(monkeypatch):
     html = """
     <html><body>
