@@ -1,11 +1,11 @@
 [project]
-name = "mcp-puerto-rico-sentencias"
-version = "0.6.0"
-description = "MCP multiplataforma para investigar derecho de Puerto Rico desde fuentes públicas verificables: jurisprudencia, órdenes ejecutivas, apelaciones y actualidad jurídica."
+name = "mcp-puerto-rico-investigacion-juridica"
+version = "0.7.0"
+description = "MCP de investigación jurídica de Puerto Rico para buscar y verificar jurisprudencia, legislación, reglamentos, decisiones administrativas y actualidad jurídica pública desde Claude, ChatGPT y otros clientes MCP."
 readme = "README.md"
 license = { file = "LICENSE" }
 authors = [
-  { name = "MCP Puerto Rico Sentencias contributors" },
+  { name = "MCP Puerto Rico — Investigación Jurídica contributors" },
 ]
 requires-python = ">=3.10"
 dependencies = [
@@ -23,11 +23,14 @@ Repository = "https://github.com/ericalopezfebo/mcp-puerto-rico-sentencias"
 Issues = "https://github.com/ericalopezfebo/mcp-puerto-rico-sentencias/issues"
 
 [project.scripts]
-mcp-puerto-rico-sentencias = "legal_portal:main"
+mcp-puerto-rico-investigacion-juridica = "research_server:main"
+mcp-puerto-rico-investigacion-juridica-remote = "remote_server:main"
+# Backward-compatible aliases so existing Claude/ChatGPT configurations keep working.
+mcp-puerto-rico-sentencias = "research_server:main"
 mcp-puerto-rico-sentencias-remote = "remote_server:main"
 
 [tool.setuptools]
-py-modules = ["server", "legal_portal", "remote_server"]
+py-modules = ["server", "research_server", "remote_server"]
 
 [build-system]
 requires = ["setuptools>=68"]
