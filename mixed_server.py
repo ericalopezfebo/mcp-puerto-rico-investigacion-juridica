@@ -8,15 +8,15 @@ import research_server
 import smart_server
 import authority_reader  # registers leer_autoridad_publica
 import jrt_server  # registers verified JRT search
+import vigencia_server  # registers legislative currency safeguards
 
-VERSION = "0.10.1"
+VERSION = "0.11.0"
 research_server.VERSION = VERSION
 mcp = smart_server.mcp
 
-# Server-level instructions are sent to MCP clients during initialization.  This
-# makes the routing policy visible even before the model inspects individual
-# tool descriptions, so requests for a Top-N of TSPR decisions are routed to the
-# relevance-first loop rather than to a chronological/year-scoped search.
+# Server-level instructions are sent to MCP clients during initialization. This
+# makes the routing and currency policies visible even before the model inspects
+# individual tool descriptions.
 MCP_ROUTING_INSTRUCTIONS = """
 REGLA OBLIGATORIA DE ENRUTAMIENTO PARA JURISPRUDENCIA TSPR:
 Cuando el usuario pida "las mejores", "las más relevantes", "Top N", "las que
@@ -31,12 +31,23 @@ debe competir candidatos globalmente por relevancia jurídica verificada, sin
 bono por recencia y sin recorrer años del más reciente al más antiguo para llenar
 un cupo. Si no hay suficientes autoridades verificables y realmente pertinentes,
 devuelve menos resultados en vez de completar el Top-N con casos marginales.
+
+REGLA OBLIGATORIA DE VIGENCIA LEGISLATIVA:
+Nunca presentes una ley, código, reglamento o disposición como "vigente",
+"actual", "no derogada" o equivalente únicamente porque apareció en CodeXPR,
+LexJuris, Microjuris, un PDF histórico o un índice. Antes de hacer una afirmación
+de vigencia, usa evidencia de fuente oficial disponible —preferentemente SUTRA /
+Oficina de Servicios Legislativos y/o Biblioteca Jurídica Virtual / Departamento
+de Estado— y, cuando tengas una URL oficial concreta, usa
+`verificar_vigencia_legislativa`. Si la evidencia oficial no resuelve la
+vigencia, informa `no_determinada`; nunca presumas vigencia por silencio o por un
+fallo de acceso.
+
+CodeXPR puede usarse como capa de descubrimiento cuando su contenido sea público
+y accesible, pero no como prueba final de vigencia. No uses cookies personales,
+credenciales, extensiones del navegador ni métodos para evadir login/paywalls.
 """.strip()
 
-# FastMCP v1 stores the initialization instructions on its low-level MCP server.
-# Keep any pre-existing instructions and append this product-specific routing
-# rule.  The individual tool docstring in smart_server remains a second routing
-# signal for clients that rely primarily on tool descriptions.
 _low_level_server = getattr(mcp, "_mcp_server", None)
 if _low_level_server is not None:
     _existing_instructions = getattr(_low_level_server, "instructions", None) or ""
@@ -65,6 +76,9 @@ def _mark_discovery_candidate(row: dict[str, Any], tipo: str) -> dict[str, Any]:
     item["tipo_autoridad"] = tipo
     item["estado_verificacion"] = "descubierto_en_fuente_oficial; contenido_juridico_pendiente_de_verificar"
     item["puede_citarse_como_proposicion_juridica"] = False
+    if tipo == "legislacion_reglamentos_ejecutivo":
+        item["estado_vigencia"] = "no_determinada"
+        item["puede_afirmarse_vigente"] = False
     return item
 
 
@@ -166,6 +180,7 @@ async def mixed_authority_research(
         "actualidad_secundaria": secondary[:maximo],
         "busqueda_laboral_activada": labor_enabled,
         "herramienta_verificacion_candidatos": "leer_autoridad_publica",
+        "herramienta_vigencia_legislativa": "verificar_vigencia_legislativa",
         "regla_ranking": (
             "El ranking principal admite solo texto de fuente primaria verificado. Entre clases distintas se conserva "
             "jerarquía de autoridad y dentro de cada clase se usa relevancia textual."
@@ -173,6 +188,10 @@ async def mixed_authority_research(
         "regla_integridad": (
             "No convertir descubrimiento de índice en holding, texto estatutario, vigencia o proposición jurídica. "
             "Si un dato no se verificó en el documento fuente, permanece pendiente de verificar."
+        ),
+        "regla_vigencia": (
+            "Las autoridades legislativas/reglamentarias descubiertas no se presumen vigentes. La vigencia debe verificarse en fuente oficial; "
+            "si no puede resolverse, el estado es no_determinada."
         ),
         "errores_fuente": errors,
         "siguiente_etapa": (
