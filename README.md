@@ -1,3 +1,4 @@
+<img width="800" height="200" alt="MCP-PR-Banner-Animated" src="https://github.com/user-attachments/assets/aeb3c16a-a191-4add-a50e-f429e6517bf2" />
 # MCP Puerto Rico — Investigación Jurídica 🇵🇷
 
 ## Investigación jurídica verificable desde Claude, ChatGPT y otros clientes MCP
