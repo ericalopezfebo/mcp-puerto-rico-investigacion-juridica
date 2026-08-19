@@ -1,7 +1,7 @@
 """Generic reader for public Puerto Rico primary-source documents.
 
 The reader is intentionally conservative: it verifies that a document can be
-retrieved from an allow-listed public source and extracts source text/passages.
+retrieved from an allow-listed primary source and extracts source text/passages.
 It does not infer legal effect, current validity, amendment history, or a
 holding merely because text was found.
 """
@@ -9,37 +9,67 @@ from __future__ import annotations
 
 import re
 from typing import Any
+from urllib.parse import urlparse
 
 import research_server
 import server as jurisprudencia
 
 mcp = research_server.mcp
 
+PRIMARY_AUTHORITY_HOSTS = {
+    "poderjudicial.pr",
+    "www.poderjudicial.pr",
+    "dts.poderjudicial.pr",
+    "bibliotecavirtual.estado.pr.gov",
+    "estado.pr.gov",
+    "www.estado.pr.gov",
+    "jrt.pr.gov",
+    "www.jrt.pr.gov",
+}
+MAX_AUTHORITY_BYTES = 30 * 1024 * 1024
+
+
+def _primary_url_allowed(url: str) -> bool:
+    try:
+        parsed = urlparse(url)
+        return parsed.scheme == "https" and parsed.hostname in PRIMARY_AUTHORITY_HOSTS
+    except Exception:
+        return False
+
 
 def _source_label(url: str) -> str:
-    if "poderjudicial.pr" in url:
+    host = (urlparse(url).hostname or "").lower()
+    if host.endswith("poderjudicial.pr"):
         return "Poder Judicial de Puerto Rico"
-    if "estado.pr.gov" in url:
+    if host.endswith("estado.pr.gov"):
         return "Departamento de Estado de Puerto Rico"
-    if "jrt.pr.gov" in url:
+    if host.endswith("jrt.pr.gov"):
         return "Junta de Relaciones del Trabajo de Puerto Rico"
-    return "Fuente pública permitida"
+    return "Fuente primaria pública permitida"
 
 
 async def read_public_authority(url: str, consulta: str = "", max_pasajes: int = 8) -> dict[str, Any]:
-    """Read an allow-listed official/public document and return exact passages."""
+    """Read an allow-listed primary-source document and return exact passages."""
     max_pasajes = max(1, min(int(max_pasajes), 20))
-    if not research_server._research_url_allowed(url):
+    if not _primary_url_allowed(url):
         return {
             "url": url,
             "verificado": False,
-            "error": "URL no permitida para lectura de autoridad pública",
+            "error": "URL no permitida: esta herramienta acepta solo fuentes primarias públicas autorizadas",
         }
 
     try:
         response = await research_server._fetch(url)
     except Exception as exc:
         return {"url": url, "verificado": False, "error": str(exc)}
+
+    if len(response.content) > MAX_AUTHORITY_BYTES:
+        return {
+            "url": url,
+            "fuente": _source_label(url),
+            "verificado": False,
+            "error": "Documento excede el límite de tamaño para lectura segura",
+        }
 
     content_type = response.headers.get("content-type", "").lower()
     is_pdf = "application/pdf" in content_type or url.lower().split("?", 1)[0].endswith(".pdf")
@@ -88,7 +118,7 @@ async def read_public_authority(url: str, consulta: str = "", max_pasajes: int =
         "coincidencia_tematica_verificada": bool(extracted) if consulta else None,
         "caracteres_extraidos": len(text),
         "advertencia": (
-            "Texto recuperado de la fuente indicada. Esto no verifica por sí solo vigencia, historial de enmiendas, "
+            "Texto recuperado de la fuente primaria indicada. Esto no verifica por sí solo vigencia, historial de enmiendas, "
             "tratamiento posterior ni que un pasaje constituya el holding o regla jurídica aplicable."
         ),
     }
@@ -96,11 +126,11 @@ async def read_public_authority(url: str, consulta: str = "", max_pasajes: int =
 
 @mcp.tool()
 async def leer_autoridad_publica(url: str, consulta: str = "", max_pasajes: int = 8) -> dict[str, Any]:
-    """Lee una autoridad pública permitida y devuelve pasajes textuales verificables.
+    """Lee una autoridad primaria pública y devuelve pasajes textuales verificables.
 
     Úsala para verificar documentos descubiertos por las herramientas de leyes,
     reglamentos, Tribunal de Apelaciones o decisiones administrativas antes de
-    citarlos como apoyo a una proposición jurídica. No determina vigencia ni
-    tratamiento posterior automáticamente.
+    citarlos como apoyo a una proposición jurídica. Rechaza fuentes secundarias
+    como Microjuris Al Día y no determina vigencia ni tratamiento posterior.
     """
     return await read_public_authority(url, consulta, max_pasajes)
