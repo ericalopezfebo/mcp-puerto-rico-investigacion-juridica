@@ -11,6 +11,17 @@ class FakeResponse:
         self.content = text.encode("utf-8")
         self.headers = {"content-type": content_type}
 
+    def raise_for_status(self):
+        return None
+
+
+class FakeClient:
+    def __init__(self, response: FakeResponse):
+        self.response = response
+
+    async def get(self, url: str):
+        return self.response
+
 
 @pytest.mark.asyncio
 async def test_reader_rejects_unknown_host():
@@ -42,10 +53,14 @@ async def test_reader_extracts_exact_passage_from_allowed_html(monkeypatch):
     </body></html>
     """
 
-    async def fake_fetch(url):
-        return FakeResponse(html)
+    async def fake_get_http_client():
+        return FakeClient(FakeResponse(html))
 
-    monkeypatch.setattr(authority_reader.research_server, "_fetch", fake_fetch)
+    monkeypatch.setattr(
+        authority_reader.jurisprudencia,
+        "get_http_client",
+        fake_get_http_client,
+    )
     result = await authority_reader.read_public_authority(
         "https://bibliotecavirtual.estado.pr.gov/documento/1",
         "pensión alimenticia",
