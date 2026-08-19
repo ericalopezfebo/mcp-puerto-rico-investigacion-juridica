@@ -1,3 +1,4 @@
+![Uploading MCP-PR-Banner-Animated.gif…]()
 # MCP Puerto Rico — Investigación Jurídica 🇵🇷
 
 ## Investigación jurídica verificable desde Claude, ChatGPT y otros clientes MCP
