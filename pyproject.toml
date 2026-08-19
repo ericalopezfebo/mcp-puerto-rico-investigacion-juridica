@@ -32,6 +32,10 @@ mcp-puerto-rico-sentencias-remote = "remote_server:main"
 [tool.setuptools]
 py-modules = ["server", "research_server", "remote_server"]
 
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["mcp_server*"]
+
 [build-system]
 requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
