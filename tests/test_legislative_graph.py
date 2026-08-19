@@ -1,3 +1,5 @@
+import asyncio
+
 import legislative_graph
 
 
@@ -93,3 +95,28 @@ def test_article_filter_limits_unrelated_amendments():
     result = legislative_graph.summarize_graph(target, edges, "Artículo 1343")
     assert len(result["afectaciones"]) == 1
     assert result["afectaciones"][0]["source_law"] == "Ley 122-2026"
+
+
+def test_target_law_page_does_not_create_self_edge(monkeypatch):
+    html = """
+    <html><body>
+      <h1>Ley 55-2020</h1>
+      <div>Título: Para crear el Código Civil y derogar el Código Civil anterior.</div>
+      <h2>Enmienda(s)</h2>
+      <p>Crea Ley 55-2020</p>
+      <p>Crea el Código Civil de Puerto Rico</p>
+    </body></html>
+    """
+
+    async def fake_fetch(_url):
+        return html
+
+    monkeypatch.setattr(legislative_graph, "_fetch_text", fake_fetch)
+    target = legislative_graph.parse_law_id("Ley 55-2020")
+    result = asyncio.run(
+        legislative_graph._verify_candidates(
+            target,
+            ["https://sutra.oslpr.org/prontuarios/leyes-aprobadas/124126"],
+        )
+    )
+    assert result == []
