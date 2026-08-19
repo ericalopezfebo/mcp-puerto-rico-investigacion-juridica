@@ -1,7 +1,7 @@
 [project]
 name = "mcp-puerto-rico-sentencias"
-version = "0.5.1"
-description = "MCP multiplataforma para buscar, verificar y leer sentencias de Puerto Rico desde Claude, ChatGPT y otros clientes MCP."
+version = "0.6.0"
+description = "MCP multiplataforma para investigar derecho de Puerto Rico desde fuentes públicas verificables: jurisprudencia, órdenes ejecutivas, apelaciones y actualidad jurídica."
 readme = "README.md"
 license = { file = "LICENSE" }
 authors = [
@@ -23,11 +23,11 @@ Repository = "https://github.com/ericalopezfebo/mcp-puerto-rico-sentencias"
 Issues = "https://github.com/ericalopezfebo/mcp-puerto-rico-sentencias/issues"
 
 [project.scripts]
-mcp-puerto-rico-sentencias = "server:main"
+mcp-puerto-rico-sentencias = "legal_portal:main"
 mcp-puerto-rico-sentencias-remote = "remote_server:main"
 
 [tool.setuptools]
-py-modules = ["server", "remote_server"]
+py-modules = ["server", "legal_portal", "remote_server"]
 
 [build-system]
 requires = ["setuptools>=68"]
