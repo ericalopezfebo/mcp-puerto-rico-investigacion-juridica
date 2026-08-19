@@ -1,15 +1,4 @@
-"""Multi-source orchestration layer for Puerto Rico legal research.
-
-This module adds a single MCP tool for a legal-research question that may need
-more than case law. It deliberately keeps two buckets separate:
-
-1. authorities verified against source text (currently the mature TSPR path),
-2. candidates discovered in official public portals that still require content
-   verification before they can be cited for a legal proposition.
-
-That separation prevents a link found in an official index from being ranked as
-if its legal holding or statutory text had already been verified.
-"""
+"""Multi-source orchestration layer for Puerto Rico legal research."""
 from __future__ import annotations
 
 import asyncio
@@ -17,11 +6,19 @@ from typing import Any
 
 import research_server
 import smart_server
-import authority_reader  # registers leer_autoridad_publica on the shared MCP
+import authority_reader  # registers leer_autoridad_publica
+import jrt_server  # registers verified JRT search
 
-VERSION = "0.9.1"
+VERSION = "0.10.0"
 research_server.VERSION = VERSION
 mcp = smart_server.mcp
+
+LABOR_QUERY_HINTS = {
+    "negociacion colectiva", "convenio colectivo", "practica ilicita", "practicas ilicitas",
+    "relaciones del trabajo", "sindicato", "sindical", "union obrera", "organizacion obrera",
+    "arbitraje laboral", "laudo", "patrono", "empleado unionado", "unidad apropiada",
+    "representacion sindical", "deber de justa representacion", "ley 130",
+}
 
 
 def _safe_results(value: Any) -> list[dict[str, Any]]:
@@ -39,28 +36,42 @@ def _mark_discovery_candidate(row: dict[str, Any], tipo: str) -> dict[str, Any]:
     return item
 
 
+def _looks_labor_related(argumento: str) -> bool:
+    normalized = smart_server.jurisprudencia.normalize_text(argumento)
+    return any(smart_server.jurisprudencia.normalize_text(term) in normalized for term in LABOR_QUERY_HINTS)
+
+
+def _authority_sort_key(row: dict[str, Any]) -> tuple[float, float, str]:
+    tipo = row.get("tipo_autoridad", "")
+    hierarchy = {
+        "jurisprudencia_tribunal_supremo": 100.0,
+        "decision_administrativa_laboral": 60.0,
+    }.get(tipo, 40.0)
+    relevance = float(row.get("ranking_relevancia", row.get("relevance_score", 0)) or 0)
+    title = str(row.get("citation") or row.get("titulo") or row.get("title") or "")
+    return (-hierarchy, -relevance, title)
+
+
 async def mixed_authority_research(
     argumento: str,
     maximo: int = 8,
     incluir_actualidad: bool = False,
     ano_apelaciones: int | None = None,
 ) -> dict[str, Any]:
-    """Coordinate the mature TSPR loop with other public-source collectors.
-
-    Only source-text-verified authorities enter ``autoridades_verificadas``.
-    Official-index discoveries are returned separately until their document
-    text is verified. The companion tool ``leer_autoridad_publica`` can perform
-    that source-text verification for an allow-listed candidate URL.
-    """
+    """Coordinate verified and discovery-only legal sources with strict tiers."""
     maximo = max(1, min(int(maximo), 12))
     tspr_limit = min(maximo, 6)
 
     tasks: list[Any] = [
         smart_server.relevance_first_search(argumento, maximo=tspr_limit),
         research_server.buscar_biblioteca_juridica(argumento, maximo=maximo),
-        research_server.buscar_decisiones_laborales(argumento, maximo=maximo),
     ]
-    labels = ["tspr", "biblioteca", "laboral"]
+    labels = ["tspr", "biblioteca"]
+
+    labor_enabled = _looks_labor_related(argumento)
+    if labor_enabled:
+        tasks.append(jrt_server.search_jrt_fulltext(argumento, maximo=min(maximo, 5)))
+        labels.append("laboral_verificado")
 
     if ano_apelaciones is not None:
         tasks.append(research_server.buscar_decisiones_apelaciones(argumento, int(ano_apelaciones), maximo))
@@ -72,8 +83,8 @@ async def mixed_authority_research(
     raw = await asyncio.gather(*tasks, return_exceptions=True)
     by_label: dict[str, Any] = dict(zip(labels, raw))
 
-    tspr = by_label.get("tspr")
     verified: list[dict[str, Any]] = []
+    tspr = by_label.get("tspr")
     if isinstance(tspr, dict):
         for row in tspr.get("resultados", []):
             if not isinstance(row, dict):
@@ -84,11 +95,15 @@ async def mixed_authority_research(
             item["puede_citarse_como_proposicion_juridica"] = True
             verified.append(item)
 
+    labor = by_label.get("laboral_verificado")
+    if isinstance(labor, dict):
+        for row in labor.get("resultados", []):
+            if isinstance(row, dict) and row.get("estado_verificacion") == "texto_fuente_primaria_verificado":
+                verified.append(dict(row))
+
     candidates: list[dict[str, Any]] = []
     for row in _safe_results(by_label.get("biblioteca")):
         candidates.append(_mark_discovery_candidate(row, "legislacion_reglamentos_ejecutivo"))
-    for row in _safe_results(by_label.get("laboral")):
-        candidates.append(_mark_discovery_candidate(row, "decision_administrativa_laboral"))
     for row in _safe_results(by_label.get("apelaciones")):
         candidates.append(_mark_discovery_candidate(row, "decision_tribunal_apelaciones"))
 
@@ -100,7 +115,7 @@ async def mixed_authority_research(
             item["uso"] = "descubrimiento_contexto; no sustituye autoridad primaria"
             secondary.append(item)
 
-    verified.sort(key=lambda row: -float(row.get("ranking_relevancia", row.get("relevance_score", 0)) or 0))
+    verified.sort(key=_authority_sort_key)
 
     errors: dict[str, str] = {}
     for label, value in by_label.items():
@@ -117,10 +132,11 @@ async def mixed_authority_research(
         "autoridades_verificadas": verified[:maximo],
         "candidatos_primarios_por_verificar": candidates[: maximo * 2],
         "actualidad_secundaria": secondary[:maximo],
+        "busqueda_laboral_activada": labor_enabled,
         "herramienta_verificacion_candidatos": "leer_autoridad_publica",
         "regla_ranking": (
-            "Solo las autoridades con texto de fuente primaria verificado entran al ranking principal. "
-            "Los resultados hallados únicamente en índices o portales oficiales se mantienen como candidatos separados."
+            "El ranking principal admite solo texto de fuente primaria verificado. Entre clases distintas se conserva "
+            "jerarquía de autoridad y dentro de cada clase se usa relevancia textual."
         ),
         "regla_integridad": (
             "No convertir descubrimiento de índice en holding, texto estatutario, vigencia o proposición jurídica. "
@@ -128,8 +144,7 @@ async def mixed_authority_research(
         ),
         "errores_fuente": errors,
         "siguiente_etapa": (
-            "Profundizar búsqueda estructurada de la Biblioteca Jurídica Virtual y los índices administrativos para "
-            "que más documentos directos puedan verificarse automáticamente dentro del loop multi-fuente."
+            "Profundizar búsqueda estructurada y lectura directa de legislación/reglamentos y Tribunal de Apelaciones."
         ),
     }
 
@@ -141,15 +156,7 @@ async def buscar_mejores_autoridades(
     incluir_actualidad: bool = False,
     ano_apelaciones: int | None = None,
 ) -> dict[str, Any]:
-    """Investiga una cuestión jurídica en varias fuentes sin mezclar niveles de verificación.
-
-    Úsala cuando el usuario pida las mejores autoridades para una cuestión y la
-    respuesta pueda requerir jurisprudencia, leyes, reglamentos o decisiones
-    administrativas. El ranking principal contiene solo autoridades cuyo texto
-    fuente ya fue verificado. Las demás fuentes oficiales aparecen como
-    candidatos pendientes de verificación de contenido, nunca como holdings o
-    reglas de derecho confirmadas.
-    """
+    """Investiga una cuestión jurídica en varias fuentes con niveles estrictos de verificación."""
     return await mixed_authority_research(argumento, maximo, incluir_actualidad, ano_apelaciones)
 
 

@@ -25,6 +25,8 @@ PRIMARY_AUTHORITY_HOSTS = {
     "www.estado.pr.gov",
     "jrt.pr.gov",
     "www.jrt.pr.gov",
+    "docs.pr.gov",
+    "www.docs.pr.gov",
 }
 MAX_AUTHORITY_BYTES = 30 * 1024 * 1024
 
@@ -43,8 +45,8 @@ def _source_label(url: str) -> str:
         return "Poder Judicial de Puerto Rico"
     if host.endswith("estado.pr.gov"):
         return "Departamento de Estado de Puerto Rico"
-    if host.endswith("jrt.pr.gov"):
-        return "Junta de Relaciones del Trabajo de Puerto Rico"
+    if host.endswith("jrt.pr.gov") or host.endswith("docs.pr.gov"):
+        return "Junta de Relaciones del Trabajo / repositorio documental oficial de Puerto Rico"
     return "Fuente primaria pública permitida"
 
 
@@ -59,7 +61,11 @@ async def read_public_authority(url: str, consulta: str = "", max_pasajes: int =
         }
 
     try:
-        response = await research_server._fetch(url)
+        # Use the primary-reader's narrower allowlist rather than the broader
+        # research allowlist (which also contains secondary sources).
+        client = await jurisprudencia.get_http_client()
+        response = await client.get(url)
+        response.raise_for_status()
     except Exception as exc:
         return {"url": url, "verificado": False, "error": str(exc)}
 
