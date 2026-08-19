@@ -6,12 +6,13 @@ from typing import Any
 
 import research_server
 import smart_server
+import search_tuning  # improves doctrinal recall and bounds Top-K verification latency
 import authority_reader  # registers leer_autoridad_publica
 import jrt_server  # registers verified JRT search
 import vigencia_server  # registers single-page legislative currency safeguards
 import legislative_graph  # registers automatic SUTRA amendment-history graph
 
-VERSION = "0.12.0"
+VERSION = "0.12.1"
 research_server.VERSION = VERSION
 mcp = smart_server.mcp
 
@@ -32,6 +33,12 @@ debe competir candidatos globalmente por relevancia jurídica verificada, sin
 bono por recencia y sin recorrer años del más reciente al más antiguo para llenar
 un cupo. Si no hay suficientes autoridades verificables y realmente pertinentes,
 devuelve menos resultados en vez de completar el Top-N con casos marginales.
+
+Para preguntas doctrinales complejas, el motor puede expandir conceptos de
+recuperación (por ejemplo, empleado de confianza/carrera -> debido proceso,
+interés propietario, principio de mérito, reglamento de personal) únicamente
+para DESCUBRIR candidatos. Esas expansiones nunca sustituyen la verificación del
+PDF oficial ni convierten un caso en pertinente por sí solas.
 
 REGLA OBLIGATORIA DE VIGENCIA LEGISLATIVA:
 Nunca presentes una ley, código, reglamento o disposición como "vigente",
