@@ -17,9 +17,12 @@ El repositorio y el paquete Python se llaman `mcp-puerto-rico-investigacion-juri
 - **Biblioteca Jurídica Virtual del Departamento de Estado** — leyes, resoluciones conjuntas, reglamentos, órdenes ejecutivas, decretos y proclamas disponibles públicamente.
 - **Junta de Relaciones del Trabajo de Puerto Rico** — decisiones y órdenes, órdenes administrativas y otros documentos públicos laborales.
 
-### Fuente secundaria pública
+### Fuentes secundarias públicas de descubrimiento
 
-- **Microjuris Al Día** — únicamente su búsqueda y contenido público para descubrir noticias, cambios y temas recientes. **No se accede al producto premium, no se usan credenciales, no se evade ningún paywall y no se replica la base de datos propietaria de Microjuris.** Una noticia nunca sustituye la sentencia, ley, reglamento u otra autoridad primaria correspondiente.
+- **Microjuris Al Día** — búsqueda y contenido público para descubrir noticias, cambios y temas recientes.
+- **LexJuris — menús públicos de jurisprudencia por año** — se usan únicamente como índice secundario de materia/resumen para priorizar candidatos en búsquedas globales de jurisprudencia.
+
+**No se accede a productos premium, no se usan credenciales, no se evade ningún paywall y no se replica ninguna base de datos propietaria.** Una fuente secundaria nunca sustituye la sentencia, ley, reglamento u otra autoridad primaria correspondiente.
 
 ## Qué pretende replicar — y qué no
 
@@ -29,12 +32,39 @@ No intenta copiar bases privadas, anotaciones editoriales, headnotes, clasificac
 
 ## Herramientas MCP
 
-### Jurisprudencia del Tribunal Supremo — núcleo probado
+### Jurisprudencia del Tribunal Supremo — núcleo verificado
 
-- `investigar_sentencias` — busca dentro del texto real de PDFs públicos y devuelve autoridades verificadas con cita, número de caso, página y pasaje cuando están disponibles.
+- `buscar_mejores_sentencias` — **herramienta preferida cuando el usuario pide “las mejores”, “más relevantes” o “Top N” decisiones.** Ejecuta un loop interno de descubrimiento → verificación oficial → reranking, sin recorrer años del más reciente al más antiguo y sin dar un bono automático por recencia.
+- `investigar_sentencias` — búsqueda documental por contenido de PDFs oficiales con rango de años explícito.
 - `buscar_sentencias` — búsqueda temática por palabras/frases y año.
 - `buscar_por_cita` — verificación exacta de una cita TSPR; no sustituye una cita inexistente por otra parecida.
 - `leer_sentencia` — lee un documento público y extrae pasajes directamente de la fuente.
+
+### Cómo funciona `buscar_mejores_sentencias`
+
+```text
+ARGUMENTO / PREGUNTA
+        ↓
+CANDIDATOS GLOBALES (1997 → presente)
+  índice secundario público: materia/resumen
+        ↓
+RANKING TEMÁTICO INICIAL
+        ↓
+VERIFICACIÓN DE LOS MEJORES CANDIDATOS
+  cita exacta + PDF oficial Poder Judicial
+        ↓
+RERANKING POR TEXTO REAL
+        ↓
+CITATION CHAINING DE TSPR EN PASAJES RELEVANTES
+        ↓
+NUEVA RONDA
+        ↓
+TOP-K ESTABLE O PRESUPUESTO AGOTADO
+```
+
+La fecha **no suma puntos por sí sola**. Una decisión de 2001 puede quedar por encima de una de 2026 si el texto verificado es más pertinente al argumento. El loop vive en Python dentro del MCP; no depende de que Claude decida repetir prompts o búsquedas año por año.
+
+La capa pública de descubrimiento actualmente cubre 1997 en adelante. La herramienta no afirma cobertura exhaustiva de jurisprudencia anterior a 1997. Autoridades más antiguas pueden aparecer si se descubren a través de referencias verificables, pero ampliar esa cobertura histórica sigue pendiente.
 
 ### Investigación jurídica ampliada
 
@@ -50,13 +80,13 @@ Las herramientas existentes `opciones_busqueda` y `estado` continúan disponible
 
 ## Ejemplos
 
+> “Tengo un argumento sobre pensión alimenticia. Busca las mejores 5 decisiones del Tribunal Supremo de Puerto Rico que puedan apoyarlo. No favorezcas casos recientes por ser recientes. Para cada resultado dame cita, caso, número, fecha, página, URL oficial y pasaje exacto.”
+
 > “Investiga la obligación alimentaria de los padres en Puerto Rico. Dame las mejores autoridades primarias verificables: ley, reglamento aplicable si existe y jurisprudencia. Para cada caso cita la página y el pasaje exacto.”
 
 > “¿Qué cambió con la doctrina Chevron? Busca primero actualidad jurídica pública para detectar el desarrollo y después identifica la autoridad primaria que realmente cambió la doctrina. No uses el artículo como sustituto de la sentencia.”
 
 > “Busca decisiones administrativas laborales sobre negociación colectiva y luego identifica jurisprudencia del Tribunal Supremo relacionada.”
-
-> “Busca el reglamento aplicable y casos recientes sobre revisión judicial de decisiones de agencias administrativas.”
 
 > “Si solo encuentras tres autoridades verificables, devuelve tres. No completes la lista con casos marginales ni inventados.”
 
@@ -126,7 +156,7 @@ Ejemplo de configuración local:
   "mcpServers": {
     "puerto-rico-investigacion-juridica": {
       "command": "/RUTA/AL/REPO/.venv/bin/python",
-      "args": ["/RUTA/AL/REPO/research_server.py"]
+      "args": ["/RUTA/AL/REPO/smart_server.py"]
     }
   }
 }
@@ -137,12 +167,12 @@ En Windows usa `.venv\\Scripts\\python.exe`.
 ### Claude Code
 
 ```bash
-claude mcp add puerto-rico-investigacion-juridica -- /RUTA/AL/REPO/.venv/bin/python /RUTA/AL/REPO/research_server.py
+claude mcp add puerto-rico-investigacion-juridica -- /RUTA/AL/REPO/.venv/bin/python /RUTA/AL/REPO/smart_server.py
 ```
 
 ## ChatGPT / servidor remoto
 
-El repositorio incluye `remote_server.py`, `Dockerfile` y `render.yaml`. El servidor remoto expone el mismo conjunto de herramientas mediante Streamable HTTP en:
+El repositorio incluye `remote_server.py`, `Dockerfile` y `render.yaml`. El servidor remoto expone el mismo conjunto de herramientas — incluida la búsqueda relevance-first — mediante Streamable HTTP en:
 
 ```text
 https://TU-DOMINIO/mcp
@@ -169,7 +199,7 @@ El MCP debe observar estas reglas:
 
 | Colección | Estado |
 |---|---|
-| Tribunal Supremo | ✅ Búsqueda temática, lectura de PDF, cita/página/pasaje |
+| Tribunal Supremo | ✅ PDF oficial, cita/página/pasaje + loop relevance-first 1997→presente |
 | Tribunal de Apelaciones | 🟡 Índice oficial y búsqueda inicial |
 | Leyes / resoluciones conjuntas | 🟡 Portal oficial integrado; profundización pendiente |
 | Reglamentos | 🟡 Portal oficial integrado; vigencia/historial pendiente |
@@ -177,13 +207,13 @@ El MCP debe observar estas reglas:
 | Decisiones administrativas laborales | 🟡 Descubrimiento oficial inicial |
 | Autoridad federal | ⏳ Próxima expansión |
 | Actualidad jurídica pública | 🟡 Microjuris Al Día como fuente secundaria |
-| Grafo de citas / tratamiento posterior | ⏳ Futuro |
+| Grafo de citas / tratamiento posterior | 🟡 Citation chaining TSPR inicial; tratamiento posterior completo pendiente |
 
 ## Licencia y contenido de terceros
 
 El **código de este repositorio** se publica bajo licencia MIT. Eso no convierte en MIT los documentos, sitios o contenido de terceros a los que el MCP enlaza o consulta. Cada fuente mantiene sus propios términos, derechos y políticas.
 
-Este proyecto no está afiliado ni respaldado por el Poder Judicial de Puerto Rico, el Departamento de Estado, la Junta de Relaciones del Trabajo ni Microjuris.
+Este proyecto no está afiliado ni respaldado por el Poder Judicial de Puerto Rico, el Departamento de Estado, la Junta de Relaciones del Trabajo, LexJuris ni Microjuris.
 
 ## Aviso
 

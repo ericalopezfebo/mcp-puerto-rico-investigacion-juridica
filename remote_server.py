@@ -12,7 +12,7 @@ import os
 
 from mcp.server.transport_security import TransportSecuritySettings
 
-from research_server import mcp
+from smart_server import mcp
 
 
 def _configure_remote_server() -> None:
