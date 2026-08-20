@@ -30,6 +30,10 @@ class CorpusRecord:
     subject: str = ""
     page: int | None = None
     excerpt: str = ""
+    # Search-only text is a bounded extract from the official document. It
+    # improves discovery recall but is never returned as a quotation. Only the
+    # exact `excerpt` field may be used by cached_decision as quoted source text.
+    search_text: str = ""
     concepts: tuple[str, ...] = ()
     citations: tuple[str, ...] = ()
     captured_at: str = ""
@@ -49,6 +53,7 @@ def _record_from_dict(row: dict[str, Any]) -> CorpusRecord | None:
             subject=str(row.get("subject", "")),
             page=int(row["page"]) if row.get("page") is not None else None,
             excerpt=str(row.get("excerpt", "")),
+            search_text=str(row.get("search_text", "")),
             concepts=tuple(str(x) for x in row.get("concepts", [])),
             citations=tuple(str(x) for x in row.get("citations", [])),
             captured_at=str(row.get("captured_at", "")),
@@ -99,13 +104,20 @@ def _query_vocabulary(query: str) -> list[tuple[str, float]]:
 
 def score_record(record: CorpusRecord, query: str) -> float:
     blob = jurisprudencia.normalize_text(
-        " ".join((record.title, record.subject, record.excerpt, " ".join(record.concepts)))
+        " ".join((
+            record.title,
+            record.subject,
+            record.excerpt,
+            record.search_text,
+            " ".join(record.concepts),
+        ))
     )
     score = 0.0
     matched = 0
     for term, weight in _query_vocabulary(query):
         if term and term in blob:
             matched += 1
+            # Phrase matches are much stronger than isolated token matches.
             score += weight * (3.0 if " " in term else 1.5)
     if matched >= 3:
         score += min(8.0, float(matched - 2) * 1.5)
