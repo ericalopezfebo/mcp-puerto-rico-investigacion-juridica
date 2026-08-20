@@ -12,7 +12,7 @@ import jrt_server  # registers verified JRT search
 import vigencia_server  # registers single-page legislative currency safeguards
 import legislative_graph  # registers automatic SUTRA amendment-history graph
 
-VERSION = "0.13.0"
+VERSION = "0.15.0"
 research_server.VERSION = VERSION
 mcp = smart_server.mcp
 
@@ -30,6 +30,15 @@ debe competir candidatos globalmente por relevancia jurídica verificada, sin
 bono por recencia y sin recorrer años del más reciente al más antiguo para llenar
 un cupo. Si no hay suficientes autoridades verificables y realmente pertinentes,
 devuelve menos resultados en vez de completar el Top-N con casos marginales.
+
+REGLA CORPUS-FIRST:
+Antes de hacer discovery masivo en fuentes externas, usa el corpus jurisprudencial
+local persistente para generar y rankear candidatos. Para diagnóstico o pruebas
+sin red usa `estado_corpus_jurisprudencia` y `buscar_corpus_jurisprudencia`.
+La red se usa como expansión cuando el corpus local no produce candidatos
+suficientes y para verificación final contra la fuente primaria. Un extracto
+cacheado de fuente oficial debe identificarse como cacheado y nunca presentarse
+como verificación fresca en vivo.
 
 Para preguntas doctrinales complejas, el motor DEBE separar internamente el patrón
 fáctico de las doctrinas jurídicas potencialmente controlantes. Puede expandir
