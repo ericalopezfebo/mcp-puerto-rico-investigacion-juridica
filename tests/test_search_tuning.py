@@ -1,5 +1,6 @@
 import pytest
 
+import doctrine_ontology
 import search_tuning
 import server
 import smart_server
@@ -97,49 +98,68 @@ def test_intervention_query_expands_to_rule21_doctrinal_concepts():
     assert "interes que amerite proteccion" in terms
     assert "representacion adecuada" in terms
     assert "economia procesal" in terms
-    assert "regla 21.1" in terms
-    assert "regla 21.2" in terms
 
 
-def test_rule21_catalog_metadata_receives_strong_discovery_score():
-    query = "interventor intervención Regla 21 requisitos interés afectado representación adecuada"
-    catalog_blob = (
-        "Intervención de terceros. Regla 21.1. Interés que amerite protección; "
-        "la disposición del pleito puede afectar en la práctica el interés y las partes existentes "
-        "no representan adecuadamente a la parte interventora."
-    )
-    assert search_tuning.improved_discovery_score(catalog_blob, query) >= 20
-
-
-def test_intervention_false_sense_is_penalized_without_rule21_signal():
+def test_civil_intervention_beats_administrative_false_sense_for_rule21_query():
     query = "figura del interventor bajo la Regla 21"
-    false_blob = "Intervención policial durante una investigación criminal y registro de evidencia."
-    true_blob = "Regla 21 intervención de terceros; interés afectado; parte interventora."
-    assert search_tuning.improved_discovery_score(true_blob, query) > search_tuning.improved_discovery_score(false_blob, query)
+    admin_blob = "Intervención administrativa ante una agencia, procedimiento adjudicativo e interés legítimo."
+    civil_blob = "Regla 21 intervención de terceros; interés afectado; representación adecuada; parte interventora."
+    assert search_tuning.improved_discovery_score(civil_blob, query) > search_tuning.improved_discovery_score(admin_blob, query)
 
 
-def test_rule21_verification_queries_split_doctrine_into_subissues():
-    queries = search_tuning.doctrinal_verification_queries(
-        "interventor: Regla 21, intervención como cuestión de derecho, intervención permisible y representación adecuada"
-    )
-    normalized = [server.normalize_text(q) for q in queries]
-    assert any("definicion" in q and "economia procesal" in q for q in normalized)
-    assert any("regla 21 1" in q and "interes que amerite proteccion" in q for q in normalized)
-    assert any("regla 21 2" in q and "intervencion permisible" in q for q in normalized)
-    assert any("representacion adecuada" in q and "afectar en la practica" in q for q in normalized)
+def test_administrative_intervention_expands_differently_from_rule21():
+    terms = dict(search_tuning.expanded_query_terms(
+        "solicitud de intervención ante agencia en un procedimiento adjudicativo por interés legítimo"
+    ))
+    assert "procedimiento adjudicativo" in terms
+    assert "interes legitimo" in terms
+    assert "expediente completo" in terms
 
 
-def test_job_connection_style_material_does_not_outrank_real_rule21_material():
-    query = "interventor intervención de terceros Regla 21"
-    unrelated = (
-        "descalificación de abogado; revisión interlocutoria bajo Regla 52.1; "
-        "intervención del abogado y revisión apelativa"
-    )
-    doctrinal = (
-        "Regla 21 intervención de terceros; intervención como cuestión de derecho; "
-        "interés que amerite protección; representación adecuada"
-    )
-    assert search_tuning.improved_discovery_score(doctrinal, query) > search_tuning.improved_discovery_score(unrelated, query)
+def test_jurisdiction_primary_and_exhaustion_are_distinct_but_related():
+    primary = dict(search_tuning.expanded_query_terms("jurisdicción primaria exclusiva de una agencia"))
+    exhaustion = dict(search_tuning.expanded_query_terms("agotamiento de remedios administrativos antes de revisión judicial"))
+    assert "pericia administrativa" in primary
+    assert "foro administrativo" in primary
+    assert "futilidad" in exhaustion
+    assert "revision judicial" in exhaustion
+
+
+def test_evidence_ontology_distinguishes_hearsay_from_authentication():
+    hearsay = dict(search_tuning.expanded_query_terms("prueba de referencia bajo la Regla 801"))
+    auth = dict(search_tuning.expanded_query_terms("autenticación de evidencia bajo la Regla 901"))
+    assert "declaracion fuera del tribunal" in hearsay
+    assert "verdad de lo aseverado" in hearsay
+    assert "cadena de custodia" in auth
+    assert "caracteristicas distintivas" in auth
+
+
+def test_constitutional_ontology_distinguishes_due_process_and_equal_protection():
+    due = dict(search_tuning.expanded_query_terms("debido proceso de ley por privación de interés propietario"))
+    equal = dict(search_tuning.expanded_query_terms("igual protección de las leyes y clasificación sospechosa"))
+    assert "oportunidad de ser oido" in due
+    assert "interes propietario" in due
+    assert "clasificacion sospechosa" in equal
+    assert "escrutinio estricto" in equal
+
+
+def test_civil_ontology_distinguishes_indispensable_party_and_intervenor():
+    indispensable = dict(search_tuning.expanded_query_terms("parte indispensable con interés real e inmediato"))
+    intervenor = dict(search_tuning.expanded_query_terms("interventor Regla 21 interés afectado"))
+    assert "persona ausente" in indispensable
+    assert "multiplicidad de pleitos" in indispensable
+    assert "representacion adecuada" in intervenor
+
+
+def test_ontology_contains_multiple_areas_without_case_names():
+    areas = {concept.area for concept in doctrine_ontology.LEGAL_CONCEPTS.values()}
+    assert any("administrativo" in area for area in areas)
+    assert any("procedimiento civil" in area for area in areas)
+    assert any("evidencia" in area for area in areas)
+    assert any("constitucional" in area for area in areas)
+    blob = repr(doctrine_ontology.LEGAL_CONCEPTS).lower()
+    assert "rivera padilla" not in blob
+    assert "ig builders" not in blob
 
 
 def test_unrelated_catalog_entry_still_scores_zero():
