@@ -89,6 +89,59 @@ async def test_doctrine_aware_verifier_can_accept_case_when_exact_fact_pattern_i
     assert score > 0
 
 
+def test_intervention_query_expands_to_rule21_doctrinal_concepts():
+    terms = dict(search_tuning.expanded_query_terms(
+        "figura del interventor, intervención como cuestión de derecho e intervención permisible bajo la Regla 21"
+    ))
+    assert "regla 21" in terms
+    assert "interes que amerite proteccion" in terms
+    assert "representacion adecuada" in terms
+    assert "economia procesal" in terms
+    assert "regla 21.1" in terms
+    assert "regla 21.2" in terms
+
+
+def test_rule21_catalog_metadata_receives_strong_discovery_score():
+    query = "interventor intervención Regla 21 requisitos interés afectado representación adecuada"
+    catalog_blob = (
+        "Intervención de terceros. Regla 21.1. Interés que amerite protección; "
+        "la disposición del pleito puede afectar en la práctica el interés y las partes existentes "
+        "no representan adecuadamente a la parte interventora."
+    )
+    assert search_tuning.improved_discovery_score(catalog_blob, query) >= 20
+
+
+def test_intervention_false_sense_is_penalized_without_rule21_signal():
+    query = "figura del interventor bajo la Regla 21"
+    false_blob = "Intervención policial durante una investigación criminal y registro de evidencia."
+    true_blob = "Regla 21 intervención de terceros; interés afectado; parte interventora."
+    assert search_tuning.improved_discovery_score(true_blob, query) > search_tuning.improved_discovery_score(false_blob, query)
+
+
+def test_rule21_verification_queries_split_doctrine_into_subissues():
+    queries = search_tuning.doctrinal_verification_queries(
+        "interventor: Regla 21, intervención como cuestión de derecho, intervención permisible y representación adecuada"
+    )
+    normalized = [server.normalize_text(q) for q in queries]
+    assert any("definicion" in q and "economia procesal" in q for q in normalized)
+    assert any("regla 21 1" in q and "interes que amerite proteccion" in q for q in normalized)
+    assert any("regla 21 2" in q and "intervencion permisible" in q for q in normalized)
+    assert any("representacion adecuada" in q and "afectar en la practica" in q for q in normalized)
+
+
+def test_job_connection_style_material_does_not_outrank_real_rule21_material():
+    query = "interventor intervención de terceros Regla 21"
+    unrelated = (
+        "descalificación de abogado; revisión interlocutoria bajo Regla 52.1; "
+        "intervención del abogado y revisión apelativa"
+    )
+    doctrinal = (
+        "Regla 21 intervención de terceros; intervención como cuestión de derecho; "
+        "interés que amerite protección; representación adecuada"
+    )
+    assert search_tuning.improved_discovery_score(doctrinal, query) > search_tuning.improved_discovery_score(unrelated, query)
+
+
 def test_unrelated_catalog_entry_still_scores_zero():
     query = "empleado de confianza a uno de carrera"
     assert search_tuning.improved_discovery_score("Derecho penal; registro y allanamiento", query) == 0
