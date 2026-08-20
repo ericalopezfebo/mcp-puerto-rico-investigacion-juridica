@@ -26,6 +26,27 @@ def test_cached_decision_preserves_official_provenance_and_status():
     assert decision.page is not None
 
 
+def test_estado_corpus_reports_persistent_local_runtime_without_network():
+    result = corpus_runtime.estado_corpus_jurisprudencia()
+    assert result["corpus_disponible"] is True
+    assert result["corpus_persistente_local"] is True
+    assert result["corpus_first_activo"] is True
+    assert result["registros"] >= 5
+    assert result["busqueda_local_sin_red"] is True
+
+
+def test_buscar_corpus_local_returns_candidates_and_zero_external_access():
+    result = corpus_runtime.buscar_corpus_jurisprudencia(
+        "jurisdicción primaria exclusiva concurrente pericia administrativa",
+        maximo=10,
+    )
+    citations = [row["citation"] for row in result["resultados"]]
+    assert result["accesos_externos"] == 0
+    assert result["estrategia"] == "persistent_local_corpus_only_no_network"
+    assert "2020 TSPR 26" in citations
+    assert "2014 TSPR 123" in citations
+
+
 @pytest.mark.asyncio
 async def test_corpus_first_discovery_does_not_need_live_source_when_local_pool_is_sufficient(monkeypatch):
     async def should_not_run(*_args, **_kwargs):
