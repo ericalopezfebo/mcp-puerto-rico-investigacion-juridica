@@ -8,23 +8,41 @@ on:
         required: false
         default: ""
       full_rebuild:
-        description: "Rebuild 1997-current"
+        description: "Rebuild 1997-current (manual; potentially slow)"
         required: false
         type: boolean
         default: false
+      max_docs:
+        description: "Optional per-year document cap for smoke/backfill batches"
+        required: false
+        default: ""
+  push:
+    branches: [main]
+    paths:
+      - "corpus_builder.py"
+      - "corpus_index.py"
+      - "doctrine_ontology.py"
+      - "scripts/build_corpus.py"
+      - ".github/workflows/refresh-corpus.yml"
   schedule:
     - cron: "17 9 * * 1"
 
 permissions:
   contents: write
 
+concurrency:
+  group: refresh-jurisprudence-corpus
+  cancel-in-progress: false
+
 jobs:
   refresh:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 90
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
@@ -35,6 +53,7 @@ jobs:
         env:
           CORPUS_YEARS: ${{ inputs.years }}
           CORPUS_FULL_REBUILD: ${{ inputs.full_rebuild }}
+          CORPUS_MAX_DOCS: ${{ inputs.max_docs }}
         run: python scripts/build_corpus.py
       - name: Commit refreshed corpus
         run: |
@@ -46,4 +65,5 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add data/jurisprudence_corpus.jsonl
           git commit -m "data: refresh official jurisprudence corpus"
-          git push
+          git pull --rebase origin main
+          git push origin HEAD:main
