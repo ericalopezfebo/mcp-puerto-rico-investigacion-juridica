@@ -7,6 +7,7 @@ from making the entire MCP return zero candidates.
 from __future__ import annotations
 
 import asyncio
+from dataclasses import asdict
 
 import corpus_index
 import smart_server
@@ -118,6 +119,55 @@ async def corpus_aware_relevance_search(*args, **kwargs):
     return result
 
 
+# Apply runtime patches before exposing diagnostic/local-only tools.
 smart_server._global_discovery = corpus_first_global_discovery
 smart_server._verify_candidate = resilient_verify_candidate
 smart_server.relevance_first_search = corpus_aware_relevance_search
+
+
+@smart_server.mcp.tool()
+def estado_corpus_jurisprudencia() -> dict:
+    """Reporta el estado real del corpus local persistente sin hacer acceso de red."""
+    records = corpus_index.load_corpus()
+    years = sorted({record.year for record in records})
+    cached_excerpt = sum(1 for record in records if record.verification_level.startswith("cached_official"))
+    return {
+        "corpus_disponible": bool(records),
+        "corpus_persistente_local": True,
+        "corpus_first_activo": True,
+        "ruta_corpus": str(corpus_index.CORPUS_PATH),
+        "registros": len(records),
+        "anos_cubiertos": years,
+        "registros_con_extracto_oficial_cacheado": cached_excerpt,
+        "busqueda_local_sin_red": True,
+        "umbral_candidatos_locales_antes_de_expandir_en_red": _LOCAL_DISCOVERY_SUFFICIENT,
+        "timeout_expansion_red_segundos": _LIVE_DISCOVERY_TIMEOUT,
+        "timeout_verificacion_viva_segundos": _LIVE_VERIFY_TIMEOUT,
+        "estrategia": "local_corpus_first; live_network_only_for_expansion_and_final_verification",
+        "nota_integridad": (
+            "El corpus conserva URL y procedencia de fuente primaria. Un extracto cacheado se etiqueta como tal "
+            "y no se presenta como una verificación fresca en vivo."
+        ),
+    }
+
+
+@smart_server.mcp.tool()
+def buscar_corpus_jurisprudencia(consulta: str, maximo: int = 20) -> dict:
+    """Busca candidatos TSPR solo en el corpus local; no realiza ninguna petición externa."""
+    maximo = max(1, min(int(maximo), 50))
+    hits = corpus_index.search_corpus(consulta, years=None, limit=maximo)
+    resultados = []
+    for record, score in hits:
+        item = asdict(record)
+        item["ranking_relevancia_local"] = score
+        item["descubierto_por"] = "local_primary_source_corpus"
+        item["requiere_red"] = False
+        resultados.append(item)
+    return {
+        "consulta": consulta,
+        "estrategia": "persistent_local_corpus_only_no_network",
+        "total": len(resultados),
+        "resultados": resultados,
+        "accesos_externos": 0,
+        "integridad": "Resultados de discovery local; la verificación fresca del holding puede hacerse después contra la fuente primaria.",
+    }
