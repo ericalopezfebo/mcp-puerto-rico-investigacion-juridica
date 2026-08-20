@@ -22,10 +22,11 @@ from bs4 import BeautifulSoup
 from mcp.server.fastmcp import FastMCP
 
 import server as jurisprudencia
+import corpus_index
 
 PRODUCT_NAME = "MCP Puerto Rico — Investigación Jurídica"
 PRODUCT_SLUG = "puerto-rico-investigacion-juridica"
-VERSION = "0.8.1"
+VERSION = "0.15.0"
 
 # New public server identity. The legacy server module remains untouched and is
 # used as a tested implementation library for Tribunal Supremo operations.
@@ -351,70 +352,28 @@ async def buscar_biblioteca_juridica(consulta: str, maximo: int = 10) -> dict[st
             "total": min(len(hits), maximo),
             "fuente": STATE_LIBRARY,
             "colecciones": ["leyes", "resoluciones conjuntas", "reglamentos", "órdenes ejecutivas", "decretos", "proclamas"],
-            "nota": "La vigencia, enmiendas y texto consolidado deben verificarse en el documento oficial correspondiente antes de citar.",
+            "nota": "La Biblioteca Jurídica Virtual es fuente oficial; este método descubre enlaces visibles y no presume vigencia por mera aparición.",
         }
     except Exception as exc:
         return {"consulta": consulta, "resultados": [], "error": str(exc), "fuente": STATE_LIBRARY}
 
 
 @mcp.tool()
-async def buscar_decisiones_laborales(consulta: str, maximo: int = 10) -> dict[str, Any]:
-    """Busca enlaces públicos de decisiones y órdenes de la Junta de Relaciones del Trabajo."""
-    maximo = max(1, min(int(maximo), 25))
-    try:
-        response = await _fetch(JRT_HOME)
-        soup = BeautifulSoup(response.text, "html.parser")
-        candidates: list[dict[str, Any]] = []
-        seen: set[str] = set()
-        for a in soup.find_all("a", href=True):
-            title = jurisprudencia.clean(a.get_text(" ", strip=True))
-            href = urljoin(JRT_HOME, a["href"])
-            if not title or href in seen or not _research_url_allowed(href):
-                continue
-            blob = f"{title} {href}"
-            score = _score_blob(blob, consulta)
-            if consulta and score <= 0 and not any(k in _normalize(blob) for k in ("decision", "orden", "desestimacion")):
-                continue
-            seen.add(href)
-            candidates.append({
-                "titulo": title,
-                "url": href,
-                "fuente": "Junta de Relaciones del Trabajo de Puerto Rico",
-                "nivel_fuente": "fuente_primaria_oficial",
-                "relevancia_indice": score,
-                "verificado": True,
-            })
-        candidates.sort(key=lambda item: -int(item["relevancia_indice"]))
-        return {
-            "consulta": consulta,
-            "resultados": candidates[:maximo],
-            "fuente": JRT_HOME,
-            "nota_cobertura": "La Junta informa que publica decisiones y órdenes digitalizadas desde 1963 hasta el presente.",
-        }
-    except Exception as exc:
-        return {"consulta": consulta, "resultados": [], "error": str(exc), "fuente": JRT_HOME}
-
-
-@mcp.tool()
 async def buscar_actualidad_juridica(consulta: str, maximo: int = 10) -> dict[str, Any]:
-    """Busca noticias/análisis públicos en Microjuris Al Día como fuente secundaria.
-
-    No accede a la base premium de Microjuris, no usa credenciales, no elude
-    controles de acceso y no presenta contenido editorial como autoridad
-    primaria. Devuelve únicamente resultados visibles en la búsqueda pública.
-    """
-    maximo = max(1, min(int(maximo), 20))
-    url = f"{MICROJURIS_ALDIA}?s={quote_plus(consulta)}"
+    """Busca contenido público de Microjuris Al Día como fuente secundaria de actualidad."""
+    maximo = max(1, min(int(maximo), 25))
+    search_url = f"{MICROJURIS_ALDIA}?s={quote_plus(consulta)}"
     try:
-        response = await _fetch(url)
-        hits = _parse_public_search_results(response.text, MICROJURIS_ALDIA, consulta, maximo)
+        response = await _fetch(search_url)
+        results = _parse_public_search_results(response.text, MICROJURIS_ALDIA, consulta, maximo)
         return {
             "consulta": consulta,
-            "resultados": hits,
-            "total": len(hits),
-            "fuente": MICROJURIS_ALDIA,
+            "resultados": results,
+            "total": len(results),
+            "fuente": "Microjuris Al Día",
+            "url_busqueda": search_url,
             "nivel_fuente": "fuente_secundaria_publica",
-            "regla_verificacion": "Use estos resultados para descubrir desarrollos. Verifique la proposición jurídica en la sentencia, ley, reglamento u otra autoridad primaria antes de citarla como derecho.",
+            "uso": "descubrimiento, contexto y alerta de desarrollos; verificar autoridad primaria antes de citar una proposición jurídica",
             "sin_acceso_premium": True,
         }
     except Exception as exc:
@@ -459,14 +418,28 @@ async def investigar_derecho_pr(consulta: str, ano: int | None = None, maximo: i
 
 @mcp.tool()
 def estado_investigacion_juridica() -> dict[str, Any]:
-    """Diagnóstico de la capa ampliada de investigación jurídica."""
+    """Diagnóstico de la investigación jurídica, incluyendo el corpus local persistente."""
+    records = corpus_index.load_corpus()
+    years = sorted({record.year for record in records})
     return {
         "producto": PRODUCT_NAME,
         "slug": PRODUCT_SLUG,
         "version": VERSION,
         "servidor_mcp": PRODUCT_SLUG,
         "servidor_base_interno": "puerto-rico-sentencias (núcleo de compatibilidad)",
+        "arquitectura_busqueda": "corpus_local_first_then_live_expansion_and_verification",
+        "corpus": {
+            "disponible": bool(records),
+            "persistente_local": True,
+            "registros": len(records),
+            "anos_cubiertos": years,
+            "ruta": str(corpus_index.CORPUS_PATH),
+            "busqueda_local_sin_red": True,
+            "herramienta_diagnostico": "estado_corpus_jurisprudencia",
+            "herramienta_busqueda_local": "buscar_corpus_jurisprudencia",
+        },
         "colecciones": [
+            "Corpus jurisprudencial local construido desde fuentes primarias oficiales",
             "Tribunal Supremo",
             "Tribunal de Apelaciones",
             "Biblioteca Jurídica Virtual del Departamento de Estado",
@@ -477,8 +450,10 @@ def estado_investigacion_juridica() -> dict[str, Any]:
             "no_autoridades_inventadas": True,
             "no_texto_premium_microjuris": True,
             "no_elusion_de_paywall": True,
+            "corpus_first": True,
             "fuente_primaria_preferida": True,
             "fuente_secundaria_etiquetada": True,
+            "cache_oficial_identificada_como_cache": True,
         },
     }
 
