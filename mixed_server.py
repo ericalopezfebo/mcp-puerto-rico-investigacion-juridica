@@ -12,7 +12,7 @@ import jrt_server  # registers verified JRT search
 import vigencia_server  # registers single-page legislative currency safeguards
 import legislative_graph  # registers automatic SUTRA amendment-history graph
 
-VERSION = "0.12.2"
+VERSION = "0.12.3"
 research_server.VERSION = VERSION
 mcp = smart_server.mcp
 
@@ -33,12 +33,17 @@ devuelve menos resultados en vez de completar el Top-N con casos marginales.
 
 Para preguntas doctrinales complejas, el motor DEBE separar internamente el patrón
 fáctico de las doctrinas jurídicas potencialmente controlantes. Puede expandir
-conceptos de recuperación (por ejemplo, empleado de confianza/carrera -> debido
-proceso, interés propietario, principio de mérito, reglamento de personal, planes
-de clasificación/retribución) para DESCUBRIR candidatos y luego leer el mismo PDF
+conceptos de recuperación para DESCUBRIR candidatos y luego leer el mismo PDF
 oficial con consultas doctrinales más estrechas. No exijas que todos los hechos y
 la doctrina aparezcan en el mismo párrafo: un precedente puede ser controlante
 aunque su catálogo use una materia distinta de la formulación del usuario.
+
+Para conceptos jurídicos polisémicos, como `intervención`, el motor debe distinguir
+el sentido jurídico solicitado antes de rankear. En consultas sobre la figura del
+interventor bajo la Regla 21, prioriza intervención de terceros, interés afectado,
+intervención como cuestión de derecho/permisible, representación adecuada y
+economía procesal, y no confundas esa doctrina con intervención policial,
+apelativa, de abogados o administrativa bajo LPAU.
 
 Las expansiones nunca sustituyen la verificación de la cita ni del PDF oficial,
 y nunca deben introducir por nombre un caso que no haya sido descubierto por las
