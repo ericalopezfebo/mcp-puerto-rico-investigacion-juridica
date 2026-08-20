@@ -30,7 +30,7 @@ mcp-puerto-rico-sentencias = "bootstrap_server:main"
 mcp-puerto-rico-sentencias-remote = "bootstrap_remote:main"
 
 [tool.setuptools]
-py-modules = ["server", "research_server", "smart_server", "search_tuning", "doctrine_ontology", "corpus_index", "corpus_runtime", "authority_reader", "jrt_server", "vigencia_server", "legislative_graph", "mixed_server", "remote_server", "bootstrap_server", "bootstrap_remote"]
+py-modules = ["server", "research_server", "smart_server", "search_tuning", "doctrine_ontology", "corpus_index", "corpus_builder", "corpus_runtime", "authority_reader", "jrt_server", "vigencia_server", "legislative_graph", "mixed_server", "remote_server", "bootstrap_server", "bootstrap_remote"]
 
 [tool.setuptools.package-data]
 "*" = ["data/*.jsonl"]
