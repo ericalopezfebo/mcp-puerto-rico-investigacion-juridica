@@ -14,118 +14,83 @@ import copy
 
 import server as jurisprudencia
 import smart_server
+from doctrine_ontology import matching_concepts
 
-# Expansions are intentionally doctrinal, not case-specific. They help bridge
-# factual phrasing to doctrinal labels often used in public case indexes.
+# Small high-value bridges kept for historically difficult queries. The broader
+# vocabulary now lives in doctrine_ontology.py so search tuning is not a pile of
+# one-off exceptions.
 _DOCTRINAL_EXPANSIONS: dict[str, tuple[str, ...]] = {
     "empleado de confianza": (
         "servicio de carrera", "empleado de carrera", "debido proceso de ley",
         "interes propietario", "derecho propietario", "principio de merito",
         "planes de clasificacion", "retribucion", "reglamento de personal",
     ),
-    "empleado confianza": (
-        "servicio de carrera", "empleado de carrera", "debido proceso de ley",
-        "interes propietario", "principio de merito",
-    ),
     "reinstalacion": (
-        "reinstalacion", "reposicion", "reingreso", "servicio de carrera",
-        "empleado de carrera", "remedio",
+        "reposicion", "reingreso", "servicio de carrera", "empleado de carrera", "remedio",
     ),
     "derecho propietario": (
-        "interes propietario", "interes de propiedad", "debido proceso de ley",
-        "derecho adquirido",
-    ),
-    "derecho probatorio": (
-        "presuncion", "carga de la prueba", "evidencia", "debido proceso de ley",
+        "interes propietario", "interes de propiedad", "debido proceso de ley", "derecho adquirido",
     ),
     "reglamento": (
         "facultad reglamentaria", "agencia obligada a seguir su reglamento",
         "derechos establecidos en reglamento", "debido proceso de ley", "ultra vires",
         "error administrativo", "reglamento de personal",
     ),
-    "carrera": (
-        "servicio de carrera", "empleado de carrera", "principio de merito",
-        "personal publico", "planes de clasificacion",
-    ),
-    "derecho administrativo": (
-        "agencia administrativa", "debido proceso de ley", "facultad reglamentaria",
-        "revision judicial", "ultra vires",
-    ),
-    # Regla 21 / intervención. These terms describe the doctrine generically;
-    # no case name or citation is encoded here.
-    "interventor": (
-        "intervencion", "intervencion de terceros", "parte interventora", "regla 21",
-        "intervencion como cuestion de derecho", "intervencion permisible",
-        "interes que amerite proteccion", "interes afectado", "representacion adecuada",
-        "derecho o interes en la propiedad", "asunto objeto del litigio", "economia procesal",
-        "tercero", "terceria", "regla 21.1", "regla 21.2", "regla 21.4", "regla 21.5",
-        "dilacion", "perjuicio a las partes originales",
-    ),
-    "intervencion": (
-        "interventor", "intervencion de terceros", "parte interventora", "regla 21",
-        "intervencion como cuestion de derecho", "intervencion permisible",
-        "interes que amerite proteccion", "interes afectado", "representacion adecuada",
-        "derecho o interes en la propiedad", "asunto objeto del litigio", "economia procesal",
-        "tercero", "terceria", "regla 21.1", "regla 21.2", "regla 21.4", "regla 21.5",
-    ),
-    "regla 21": (
-        "interventor", "intervencion de terceros", "parte interventora",
-        "intervencion como cuestion de derecho", "intervencion permisible",
-        "interes que amerite proteccion", "interes afectado", "representacion adecuada",
-        "economia procesal", "regla 21.1", "regla 21.2", "regla 21.4", "regla 21.5",
-    ),
 }
 
-_INTERVENTION_QUERY_TRIGGERS = (
-    "interventor", "intervencion", "parte interventora", "regla 21",
-    "intervencion de terceros", "intervencion permisible", "intervencion como cuestion de derecho",
-)
 
-# Common false senses of the word "intervención" that should not dominate a
-# Regla 21 civil-procedure query merely because they share the same surface word.
-_INTERVENTION_FALSE_SENSES = (
-    "intervencion policial", "intervencion policiaca", "intervencion de la policia",
-    "intervencion apelativa", "intervencion del tribunal de apelaciones",
-    "intervencion de abogado", "intervencion del abogado", "intervencion de letrado",
-    "solicitud de intervencion ante la agencia", "intervencion administrativa bajo la lpau",
-    "intervencion de procurador", "intervencion del procurador",
-)
+def _normalized(text: str) -> str:
+    return jurisprudencia.normalize_text(text or "")
 
 
-def _is_rule21_query(query: str) -> bool:
-    normalized = jurisprudencia.normalize_text(query or "")
-    return any(jurisprudencia.normalize_text(term) in normalized for term in _INTERVENTION_QUERY_TRIGGERS)
+def _concept_matches(query: str):
+    return matching_concepts(_normalized(query))
 
 
 def expanded_query_terms(query: str) -> list[tuple[str, float]]:
-    """Return original and doctrinally-expanded search terms with weights."""
-    normalized = jurisprudencia.normalize_text(query or "")
+    """Return original and doctrine-aware search terms with weights.
+
+    Ontology expansions are discovery-only. They can cause a candidate to be
+    opened, but cannot make an authority verified.
+    """
+    normalized = _normalized(query)
     weighted: dict[str, float] = {}
 
     for term in jurisprudencia.query_terms(query):
-        nt = jurisprudencia.normalize_text(term)
+        nt = _normalized(term)
         if nt:
             weighted[nt] = max(weighted.get(nt, 0.0), 1.0)
 
     for trigger, expansions in _DOCTRINAL_EXPANSIONS.items():
-        if jurisprudencia.normalize_text(trigger) not in normalized:
+        if _normalized(trigger) not in normalized:
             continue
         for term in expansions:
-            nt = jurisprudencia.normalize_text(term)
+            nt = _normalized(term)
             if nt:
                 weighted[nt] = max(weighted.get(nt, 0.0), 0.72)
+
+    # Controlled ontology: aliases are strong signals; related concepts are
+    # softer bridges that help map factual language to doctrinal catalog labels.
+    for _name, concept in _concept_matches(query):
+        for alias in concept.aliases:
+            nt = _normalized(alias)
+            if nt:
+                weighted[nt] = max(weighted.get(nt, 0.0), 0.92)
+        for related in concept.related:
+            nt = _normalized(related)
+            if nt:
+                weighted[nt] = max(weighted.get(nt, 0.0), 0.68)
+        area = _normalized(concept.area)
+        if area:
+            weighted[area] = max(weighted.get(area, 0.0), 0.42)
 
     return sorted(weighted.items(), key=lambda item: (-item[1], item[0]))
 
 
 def improved_discovery_score(blob: str, query: str) -> float:
-    """Score public index metadata using exact + doctrinally-related concepts.
-
-    Expanded concepts only influence which candidates get opened. They never
-    make a case verified or relevant on their own.
-    """
-    normalized = jurisprudencia.normalize_text(blob or "")
-    query_norm = jurisprudencia.normalize_text(query or "")
+    """Score public index metadata using exact + doctrinally-related concepts."""
+    normalized = _normalized(blob)
+    query_norm = _normalized(query)
     score = 0.0
 
     if query_norm and len(query_norm) >= 6 and query_norm in normalized:
@@ -143,56 +108,66 @@ def improved_discovery_score(blob: str, query: str) -> float:
 
     matched = sum(1 for term, _weight in terms if term and term in normalized)
     if matched >= 3:
-        score += min(6.0, (matched - 2) * 1.0)
+        score += min(7.0, (matched - 2) * 1.0)
+
+    # Reward internally coherent ontology clusters rather than isolated words.
+    for _name, concept in _concept_matches(query):
+        alias_hits = sum(1 for phrase in concept.aliases if _normalized(phrase) in normalized)
+        related_hits = sum(1 for phrase in concept.related if _normalized(phrase) in normalized)
+        if alias_hits and related_hits >= 2:
+            score += min(12.0, 4.0 + related_hits * 1.5)
+        elif related_hits >= 3:
+            score += min(8.0, related_hits * 1.5)
+
+        # Sense disambiguation: a false-sense phrase is a strong penalty only
+        # when the candidate lacks positive signals for the intended concept.
+        false_hits = sum(1 for phrase in concept.false_senses if _normalized(phrase) in normalized)
+        if false_hits and alias_hits == 0 and related_hits < 2:
+            score -= min(24.0, false_hits * 12.0)
 
     bridge_sets = (
         ("debido proceso de ley", "planes de clasificacion"),
         ("debido proceso de ley", "retribucion"),
         ("reglamento de personal", "debido proceso de ley"),
         ("servicio de carrera", "principio de merito"),
-        # Generic Regla 21 bridges.
         ("regla 21", "interes afectado"),
         ("regla 21", "representacion adecuada"),
         ("intervencion como cuestion de derecho", "interes que amerite proteccion"),
-        ("intervencion permisible", "economia procesal"),
+        ("prueba de referencia", "declaracion fuera del tribunal"),
+        ("sentencia sumaria", "hecho material"),
+        ("jurisdiccion primaria", "pericia administrativa"),
+        ("agotamiento de remedios", "revision judicial"),
+        ("empleado de carrera", "interes propietario"),
+        ("igual proteccion de las leyes", "escrutinio estricto"),
     )
     available = {term for term, _weight in terms}
     for left, right in bridge_sets:
         if left in available and right in available and left in normalized and right in normalized:
             score += 8.0
 
-    if _is_rule21_query(query):
-        false_hits = sum(
-            1 for phrase in _INTERVENTION_FALSE_SENSES
-            if jurisprudencia.normalize_text(phrase) in normalized
-        )
-        # A false-sense marker is not an absolute exclusion: a case could discuss
-        # both doctrines. It is a strong ranking penalty unless Rule 21-specific
-        # concepts also appear in the same catalog text.
-        rule21_signals = sum(
-            1 for phrase in (
-                "regla 21", "intervencion de terceros", "parte interventora",
-                "interes afectado", "representacion adecuada", "economia procesal",
-                "intervencion como cuestion de derecho", "intervencion permisible",
-            )
-            if jurisprudencia.normalize_text(phrase) in normalized
-        )
-        if false_hits and rule21_signals == 0:
-            score -= min(24.0, false_hits * 12.0)
-
     return round(max(0.0, score), 2)
 
 
 def doctrinal_verification_queries(query: str) -> list[str]:
-    """Create focused legal-doctrine queries for reading an official PDF."""
-    normalized = jurisprudencia.normalize_text(query or "")
+    """Create focused doctrine queries for reading an official PDF.
+
+    Complex user prompts are decomposed into independently verifiable legal
+    sub-issues. This prevents a controlling case from being rejected just because
+    no single paragraph repeats the user's entire factual formulation.
+    """
+    normalized = _normalized(query)
     queries = [query]
 
     def add(value: str) -> None:
-        key = jurisprudencia.normalize_text(value)
-        if key and all(jurisprudencia.normalize_text(q) != key for q in queries):
+        key = _normalized(value)
+        if key and all(_normalized(q) != key for q in queries):
             queries.append(value)
 
+    for _name, concept in _concept_matches(query):
+        for focused in concept.verification_queries:
+            add(focused)
+
+    # Cross-doctrine bridges for difficult employment/regulation questions.
     if "reglamento" in normalized:
         add("agencia obligada a seguir su reglamento debido proceso derechos establecidos reglamento")
         add("reglamento crea derecho concreto derecho propietario interes propietario")
@@ -202,21 +177,8 @@ def doctrinal_verification_queries(query: str) -> list[str]:
         add("planes de clasificacion retribucion debido proceso servicio de carrera")
     if "reinstal" in normalized or "reposicion" in normalized or "reingreso" in normalized:
         add("reinstalacion reposicion reingreso empleado de carrera remedio")
-    if "derecho propietario" in normalized or "interes propietario" in normalized:
-        add("interes propietario derecho propietario debido proceso derecho adquirido")
-    if "derecho administrativo" in normalized:
-        add("derecho administrativo agencia reglamento debido proceso facultad reglamentaria")
 
-    if _is_rule21_query(query):
-        # Separate the doctrine into sub-issues so a controlling case can verify
-        # even if one paragraph does not contain every part of the user's prompt.
-        add("regla 21 intervencion de terceros interventor definicion proposito economia procesal")
-        add("regla 21.1 intervencion como cuestion de derecho interes que amerite proteccion interes afectado")
-        add("regla 21.2 intervencion permisible dilacion perjuicio partes originales")
-        add("disposicion del pleito pueda afectar en la practica interes interventor representacion adecuada")
-        add("regla 21.4 regla 21.5 parte interventora requisitos procedimiento intervencion")
-
-    return queries[:9]
+    return queries[:12]
 
 
 async def doctrine_aware_verify_candidate(
@@ -241,7 +203,7 @@ async def doctrine_aware_verify_candidate(
             continue
         matched_queries += 1
         score = smart_server._verified_rank(decision, candidate.discovery_score, focused_query)
-        score += min(6.0, max(0, matched_queries - 1) * 1.5)
+        score += min(7.5, max(0, matched_queries - 1) * 1.5)
         if best_decision is None or score > best_score:
             best_decision = decision
             best_score = score
