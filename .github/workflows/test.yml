@@ -18,7 +18,7 @@ jobs:
       - name: Install
         run: pip install -e ".[test]"
       - name: Import smoke test
-        run: python -c "import server, research_server, smart_server, search_tuning, doctrine_ontology, corpus_index, corpus_runtime, authority_reader, jrt_server, vigencia_server, legislative_graph, mixed_server, remote_server, bootstrap_server, bootstrap_remote; print('imports ok', bootstrap_server.VERSION)"
+        run: python -c "import server, research_server, smart_server, search_tuning, doctrine_ontology, corpus_index, corpus_builder, corpus_runtime, authority_reader, jrt_server, vigencia_server, legislative_graph, mixed_server, remote_server, bootstrap_server, bootstrap_remote; print('imports ok', bootstrap_server.VERSION)"
       - name: Offline corpus smoke test
         run: python -c "import corpus_index; r=corpus_index.search_corpus('jurisdicción primaria exclusiva concurrente pericia administrativa', list(range(1997,2027)), 10); assert len(r)>=3; print([x[0].citation for x in r])"
       - name: Run tests
