@@ -12,7 +12,7 @@ import jrt_server  # registers verified JRT search
 import vigencia_server  # registers single-page legislative currency safeguards
 import legislative_graph  # registers automatic SUTRA amendment-history graph
 
-VERSION = "0.12.3"
+VERSION = "0.13.0"
 research_server.VERSION = VERSION
 mcp = smart_server.mcp
 
@@ -38,12 +38,14 @@ oficial con consultas doctrinales más estrechas. No exijas que todos los hechos
 la doctrina aparezcan en el mismo párrafo: un precedente puede ser controlante
 aunque su catálogo use una materia distinta de la formulación del usuario.
 
-Para conceptos jurídicos polisémicos, como `intervención`, el motor debe distinguir
-el sentido jurídico solicitado antes de rankear. En consultas sobre la figura del
-interventor bajo la Regla 21, prioriza intervención de terceros, interés afectado,
-intervención como cuestión de derecho/permisible, representación adecuada y
-economía procesal, y no confundas esa doctrina con intervención policial,
-apelativa, de abogados o administrativa bajo LPAU.
+El motor dispone de una ontología jurídica controlada que distingue figuras y
+subfiguras de derecho administrativo, procedimiento civil, evidencia y derecho
+constitucional. Antes de rankear un término polisémico, identifica su área y sentido
+jurídico probable y usa conceptos relacionados únicamente para discovery. Ejemplos:
+intervención civil bajo Regla 21 no es lo mismo que intervención administrativa;
+revisión judicial no es reconsideración; jurisdicción primaria no es agotamiento de
+remedios; parte indispensable no es interventor; prueba de referencia no es cualquier
+declaración; debido proceso no equivale automáticamente a igual protección.
 
 Las expansiones nunca sustituyen la verificación de la cita ni del PDF oficial,
 y nunca deben introducir por nombre un caso que no haya sido descubierto por las
