@@ -6,12 +6,11 @@ facts. It also caps the expensive official-PDF verification phase so a failed
 search does not run for many minutes.
 
 The secondary discovery index remains discovery-only. Final authorities still
-must pass the existing official Poder Judicial verification path in
-``smart_server``.
+must pass exact citation lookup and official Poder Judicial PDF verification.
 """
 from __future__ import annotations
 
-import re
+import copy
 
 import server as jurisprudencia
 import smart_server
@@ -61,6 +60,7 @@ _DOCTRINAL_EXPANSIONS: dict[str, tuple[str, ...]] = {
     "reglamento": (
         "facultad reglamentaria",
         "agencia obligada a seguir su reglamento",
+        "derechos establecidos en reglamento",
         "debido proceso de ley",
         "ultra vires",
         "error administrativo",
@@ -117,7 +117,8 @@ def improved_discovery_score(blob: str, query: str) -> float:
     if query_norm and len(query_norm) >= 6 and query_norm in normalized:
         score += 12.0
 
-    for term, weight in expanded_query_terms(query):
+    terms = expanded_query_terms(query)
+    for term, weight in terms:
         if not term:
             continue
         count = min(normalized.count(term), 5)
@@ -126,17 +127,102 @@ def improved_discovery_score(blob: str, query: str) -> float:
         phrase_bonus = 2.5 if " " in term else 1.0
         score += weight * (phrase_bonus + min(count, 3) * 0.8)
 
-    # Give a small bonus when multiple distinct doctrinal concepts co-occur in
-    # the same public catalog entry. This helps surface doctrinal cases whose
-    # matter label differs from the user's factual wording.
-    matched = 0
-    for term, _weight in expanded_query_terms(query):
-        if term and term in normalized:
-            matched += 1
+    matched = sum(1 for term, _weight in terms if term and term in normalized)
     if matched >= 3:
-        score += min(4.0, (matched - 2) * 0.8)
+        score += min(6.0, (matched - 2) * 1.0)
+
+    # Stronger bridge for doctrinal catalog entries. A case catalogued under
+    # due process + classification/retribution is highly worth opening when
+    # the user's issue concerns confidence/career status even if those exact
+    # factual words are absent from the public index description.
+    bridge_sets = (
+        ("debido proceso de ley", "planes de clasificacion"),
+        ("debido proceso de ley", "retribucion"),
+        ("reglamento de personal", "debido proceso de ley"),
+        ("servicio de carrera", "principio de merito"),
+    )
+    available = {term for term, _weight in terms}
+    for left, right in bridge_sets:
+        if left in available and right in available and left in normalized and right in normalized:
+            score += 8.0
 
     return round(score, 2)
+
+
+def doctrinal_verification_queries(query: str) -> list[str]:
+    """Create focused legal-doctrine queries for reading an official PDF.
+
+    A complex user argument often combines facts and doctrine that never appear
+    in one paragraph. Requiring the exact combined wording can reject the very
+    precedent that supplies the governing rule. These focused queries let the
+    verifier ask narrower doctrinal questions against the *same official PDF*.
+    They do not nominate cases and do not weaken source verification.
+    """
+    normalized = jurisprudencia.normalize_text(query or "")
+    queries = [query]
+
+    def add(value: str) -> None:
+        key = jurisprudencia.normalize_text(value)
+        if key and all(jurisprudencia.normalize_text(q) != key for q in queries):
+            queries.append(value)
+
+    if "reglamento" in normalized:
+        add("agencia obligada a seguir su reglamento debido proceso derechos establecidos reglamento")
+        add("reglamento crea derecho concreto derecho propietario interes propietario")
+        add("reglamento error administrativo ultra vires derechos reconocidos")
+    if "confianza" in normalized or "carrera" in normalized:
+        add("empleado de confianza servicio de carrera empleado de carrera principio de merito")
+        add("planes de clasificacion retribucion debido proceso servicio de carrera")
+    if "reinstal" in normalized or "reposicion" in normalized or "reingreso" in normalized:
+        add("reinstalacion reposicion reingreso empleado de carrera remedio")
+    if "derecho propietario" in normalized or "interes propietario" in normalized:
+        add("interes propietario derecho propietario debido proceso derecho adquirido")
+    if "derecho administrativo" in normalized:
+        add("derecho administrativo agencia reglamento debido proceso facultad reglamentaria")
+
+    return queries[:7]
+
+
+async def doctrine_aware_verify_candidate(
+    candidate: smart_server.DiscoveryCandidate,
+    query: str,
+):
+    """Verify one candidate with exact citation + multiple focused PDF reads.
+
+    The candidate must first exist in the official citation index. We then read
+    that official document using the original argument and narrower doctrinal
+    formulations. A case is accepted only when at least one focused query has a
+    genuinely relevant passage under the existing strict relevance checker.
+    """
+    matches = await jurisprudencia.citation_search(candidate.citation)
+    if not matches:
+        return None, 0.0
+
+    base = matches[0]
+    best_decision = None
+    best_score = 0.0
+    matched_queries = 0
+
+    for focused_query in doctrinal_verification_queries(query):
+        decision = await jurisprudencia.read_decision(copy.deepcopy(base), focused_query)
+        if not decision.verified:
+            continue
+        if not jurisprudencia._document_relevance_confirmed(decision, focused_query):
+            continue
+        matched_queries += 1
+        score = smart_server._verified_rank(decision, candidate.discovery_score, focused_query)
+        # Reward doctrinal convergence across independent focused formulations,
+        # but only after each formulation independently passed official-text
+        # relevance verification.
+        score += min(6.0, max(0, matched_queries - 1) * 1.5)
+        if best_decision is None or score > best_score:
+            best_decision = decision
+            best_score = score
+
+    if best_decision is None:
+        return None, 0.0
+
+    return best_decision, round(best_score, 2)
 
 
 def faster_minimum_verifications(maximo: int) -> int:
@@ -149,6 +235,7 @@ def faster_minimum_verifications(maximo: int) -> int:
 # Apply tuning to the already-registered relevance loop. Python resolves these
 # globals at call time, so existing MCP tools automatically use the tuned logic.
 smart_server._discovery_score = improved_discovery_score
+smart_server._verify_candidate = doctrine_aware_verify_candidate
 smart_server._minimum_verifications_before_stability = faster_minimum_verifications
 smart_server.VERIFY_BATCH_SIZE = 5
 smart_server.VERIFY_CONCURRENCY = 5
