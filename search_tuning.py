@@ -16,71 +16,85 @@ import server as jurisprudencia
 import smart_server
 
 # Expansions are intentionally doctrinal, not case-specific. They help bridge
-# factual phrasing (e.g. confianza -> carrera) to the doctrinal labels often
-# used in public case indexes (e.g. debido proceso, planes de clasificación).
+# factual phrasing to doctrinal labels often used in public case indexes.
 _DOCTRINAL_EXPANSIONS: dict[str, tuple[str, ...]] = {
     "empleado de confianza": (
-        "servicio de carrera",
-        "empleado de carrera",
-        "debido proceso de ley",
-        "interes propietario",
-        "derecho propietario",
-        "principio de merito",
-        "planes de clasificacion",
-        "retribucion",
-        "reglamento de personal",
+        "servicio de carrera", "empleado de carrera", "debido proceso de ley",
+        "interes propietario", "derecho propietario", "principio de merito",
+        "planes de clasificacion", "retribucion", "reglamento de personal",
     ),
     "empleado confianza": (
-        "servicio de carrera",
-        "empleado de carrera",
-        "debido proceso de ley",
-        "interes propietario",
-        "principio de merito",
+        "servicio de carrera", "empleado de carrera", "debido proceso de ley",
+        "interes propietario", "principio de merito",
     ),
     "reinstalacion": (
-        "reinstalacion",
-        "reposicion",
-        "reingreso",
-        "servicio de carrera",
-        "empleado de carrera",
-        "remedio",
+        "reinstalacion", "reposicion", "reingreso", "servicio de carrera",
+        "empleado de carrera", "remedio",
     ),
     "derecho propietario": (
-        "interes propietario",
-        "interes de propiedad",
-        "debido proceso de ley",
+        "interes propietario", "interes de propiedad", "debido proceso de ley",
         "derecho adquirido",
     ),
     "derecho probatorio": (
-        "presuncion",
-        "carga de la prueba",
-        "evidencia",
-        "debido proceso de ley",
+        "presuncion", "carga de la prueba", "evidencia", "debido proceso de ley",
     ),
     "reglamento": (
-        "facultad reglamentaria",
-        "agencia obligada a seguir su reglamento",
-        "derechos establecidos en reglamento",
-        "debido proceso de ley",
-        "ultra vires",
-        "error administrativo",
-        "reglamento de personal",
+        "facultad reglamentaria", "agencia obligada a seguir su reglamento",
+        "derechos establecidos en reglamento", "debido proceso de ley", "ultra vires",
+        "error administrativo", "reglamento de personal",
     ),
     "carrera": (
-        "servicio de carrera",
-        "empleado de carrera",
-        "principio de merito",
-        "personal publico",
-        "planes de clasificacion",
+        "servicio de carrera", "empleado de carrera", "principio de merito",
+        "personal publico", "planes de clasificacion",
     ),
     "derecho administrativo": (
-        "agencia administrativa",
-        "debido proceso de ley",
-        "facultad reglamentaria",
-        "revision judicial",
-        "ultra vires",
+        "agencia administrativa", "debido proceso de ley", "facultad reglamentaria",
+        "revision judicial", "ultra vires",
+    ),
+    # Regla 21 / intervención. These terms describe the doctrine generically;
+    # no case name or citation is encoded here.
+    "interventor": (
+        "intervencion", "intervencion de terceros", "parte interventora", "regla 21",
+        "intervencion como cuestion de derecho", "intervencion permisible",
+        "interes que amerite proteccion", "interes afectado", "representacion adecuada",
+        "derecho o interes en la propiedad", "asunto objeto del litigio", "economia procesal",
+        "tercero", "terceria", "regla 21.1", "regla 21.2", "regla 21.4", "regla 21.5",
+        "dilacion", "perjuicio a las partes originales",
+    ),
+    "intervencion": (
+        "interventor", "intervencion de terceros", "parte interventora", "regla 21",
+        "intervencion como cuestion de derecho", "intervencion permisible",
+        "interes que amerite proteccion", "interes afectado", "representacion adecuada",
+        "derecho o interes en la propiedad", "asunto objeto del litigio", "economia procesal",
+        "tercero", "terceria", "regla 21.1", "regla 21.2", "regla 21.4", "regla 21.5",
+    ),
+    "regla 21": (
+        "interventor", "intervencion de terceros", "parte interventora",
+        "intervencion como cuestion de derecho", "intervencion permisible",
+        "interes que amerite proteccion", "interes afectado", "representacion adecuada",
+        "economia procesal", "regla 21.1", "regla 21.2", "regla 21.4", "regla 21.5",
     ),
 }
+
+_INTERVENTION_QUERY_TRIGGERS = (
+    "interventor", "intervencion", "parte interventora", "regla 21",
+    "intervencion de terceros", "intervencion permisible", "intervencion como cuestion de derecho",
+)
+
+# Common false senses of the word "intervención" that should not dominate a
+# Regla 21 civil-procedure query merely because they share the same surface word.
+_INTERVENTION_FALSE_SENSES = (
+    "intervencion policial", "intervencion policiaca", "intervencion de la policia",
+    "intervencion apelativa", "intervencion del tribunal de apelaciones",
+    "intervencion de abogado", "intervencion del abogado", "intervencion de letrado",
+    "solicitud de intervencion ante la agencia", "intervencion administrativa bajo la lpau",
+    "intervencion de procurador", "intervencion del procurador",
+)
+
+
+def _is_rule21_query(query: str) -> bool:
+    normalized = jurisprudencia.normalize_text(query or "")
+    return any(jurisprudencia.normalize_text(term) in normalized for term in _INTERVENTION_QUERY_TRIGGERS)
 
 
 def expanded_query_terms(query: str) -> list[tuple[str, float]]:
@@ -131,33 +145,46 @@ def improved_discovery_score(blob: str, query: str) -> float:
     if matched >= 3:
         score += min(6.0, (matched - 2) * 1.0)
 
-    # Stronger bridge for doctrinal catalog entries. A case catalogued under
-    # due process + classification/retribution is highly worth opening when
-    # the user's issue concerns confidence/career status even if those exact
-    # factual words are absent from the public index description.
     bridge_sets = (
         ("debido proceso de ley", "planes de clasificacion"),
         ("debido proceso de ley", "retribucion"),
         ("reglamento de personal", "debido proceso de ley"),
         ("servicio de carrera", "principio de merito"),
+        # Generic Regla 21 bridges.
+        ("regla 21", "interes afectado"),
+        ("regla 21", "representacion adecuada"),
+        ("intervencion como cuestion de derecho", "interes que amerite proteccion"),
+        ("intervencion permisible", "economia procesal"),
     )
     available = {term for term, _weight in terms}
     for left, right in bridge_sets:
         if left in available and right in available and left in normalized and right in normalized:
             score += 8.0
 
-    return round(score, 2)
+    if _is_rule21_query(query):
+        false_hits = sum(
+            1 for phrase in _INTERVENTION_FALSE_SENSES
+            if jurisprudencia.normalize_text(phrase) in normalized
+        )
+        # A false-sense marker is not an absolute exclusion: a case could discuss
+        # both doctrines. It is a strong ranking penalty unless Rule 21-specific
+        # concepts also appear in the same catalog text.
+        rule21_signals = sum(
+            1 for phrase in (
+                "regla 21", "intervencion de terceros", "parte interventora",
+                "interes afectado", "representacion adecuada", "economia procesal",
+                "intervencion como cuestion de derecho", "intervencion permisible",
+            )
+            if jurisprudencia.normalize_text(phrase) in normalized
+        )
+        if false_hits and rule21_signals == 0:
+            score -= min(24.0, false_hits * 12.0)
+
+    return round(max(0.0, score), 2)
 
 
 def doctrinal_verification_queries(query: str) -> list[str]:
-    """Create focused legal-doctrine queries for reading an official PDF.
-
-    A complex user argument often combines facts and doctrine that never appear
-    in one paragraph. Requiring the exact combined wording can reject the very
-    precedent that supplies the governing rule. These focused queries let the
-    verifier ask narrower doctrinal questions against the *same official PDF*.
-    They do not nominate cases and do not weaken source verification.
-    """
+    """Create focused legal-doctrine queries for reading an official PDF."""
     normalized = jurisprudencia.normalize_text(query or "")
     queries = [query]
 
@@ -180,20 +207,23 @@ def doctrinal_verification_queries(query: str) -> list[str]:
     if "derecho administrativo" in normalized:
         add("derecho administrativo agencia reglamento debido proceso facultad reglamentaria")
 
-    return queries[:7]
+    if _is_rule21_query(query):
+        # Separate the doctrine into sub-issues so a controlling case can verify
+        # even if one paragraph does not contain every part of the user's prompt.
+        add("regla 21 intervencion de terceros interventor definicion proposito economia procesal")
+        add("regla 21.1 intervencion como cuestion de derecho interes que amerite proteccion interes afectado")
+        add("regla 21.2 intervencion permisible dilacion perjuicio partes originales")
+        add("disposicion del pleito pueda afectar en la practica interes interventor representacion adecuada")
+        add("regla 21.4 regla 21.5 parte interventora requisitos procedimiento intervencion")
+
+    return queries[:9]
 
 
 async def doctrine_aware_verify_candidate(
     candidate: smart_server.DiscoveryCandidate,
     query: str,
 ):
-    """Verify one candidate with exact citation + multiple focused PDF reads.
-
-    The candidate must first exist in the official citation index. We then read
-    that official document using the original argument and narrower doctrinal
-    formulations. A case is accepted only when at least one focused query has a
-    genuinely relevant passage under the existing strict relevance checker.
-    """
+    """Verify one candidate with exact citation + multiple focused PDF reads."""
     matches = await jurisprudencia.citation_search(candidate.citation)
     if not matches:
         return None, 0.0
@@ -211,9 +241,6 @@ async def doctrine_aware_verify_candidate(
             continue
         matched_queries += 1
         score = smart_server._verified_rank(decision, candidate.discovery_score, focused_query)
-        # Reward doctrinal convergence across independent focused formulations,
-        # but only after each formulation independently passed official-text
-        # relevance verification.
         score += min(6.0, max(0, matched_queries - 1) * 1.5)
         if best_decision is None or score > best_score:
             best_decision = decision
