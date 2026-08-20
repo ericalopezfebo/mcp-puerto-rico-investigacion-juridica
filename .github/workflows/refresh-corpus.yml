@@ -1,0 +1,49 @@
+name: Refresh jurisprudence corpus
+
+on:
+  workflow_dispatch:
+    inputs:
+      years:
+        description: "Comma-separated years to refresh (blank = current and previous year)"
+        required: false
+        default: ""
+      full_rebuild:
+        description: "Rebuild 1997-current"
+        required: false
+        type: boolean
+        default: false
+  schedule:
+    - cron: "17 9 * * 1"
+
+permissions:
+  contents: write
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install
+        run: pip install -e .
+      - name: Refresh corpus
+        env:
+          CORPUS_YEARS: ${{ inputs.years }}
+          CORPUS_FULL_REBUILD: ${{ inputs.full_rebuild }}
+        run: python scripts/build_corpus.py
+      - name: Commit refreshed corpus
+        run: |
+          if git diff --quiet -- data/jurisprudence_corpus.jsonl; then
+            echo "No corpus changes"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/jurisprudence_corpus.jsonl
+          git commit -m "data: refresh official jurisprudence corpus"
+          git push
