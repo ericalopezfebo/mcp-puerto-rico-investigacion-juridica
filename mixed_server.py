@@ -12,13 +12,10 @@ import jrt_server  # registers verified JRT search
 import vigencia_server  # registers single-page legislative currency safeguards
 import legislative_graph  # registers automatic SUTRA amendment-history graph
 
-VERSION = "0.12.1"
+VERSION = "0.12.2"
 research_server.VERSION = VERSION
 mcp = smart_server.mcp
 
-# Server-level instructions are sent to MCP clients during initialization. This
-# makes the routing and currency policies visible even before the model inspects
-# individual tool descriptions.
 MCP_ROUTING_INSTRUCTIONS = """
 REGLA OBLIGATORIA DE ENRUTAMIENTO PARA JURISPRUDENCIA TSPR:
 Cuando el usuario pida "las mejores", "las más relevantes", "Top N", "las que
@@ -34,11 +31,20 @@ bono por recencia y sin recorrer años del más reciente al más antiguo para ll
 un cupo. Si no hay suficientes autoridades verificables y realmente pertinentes,
 devuelve menos resultados en vez de completar el Top-N con casos marginales.
 
-Para preguntas doctrinales complejas, el motor puede expandir conceptos de
-recuperación (por ejemplo, empleado de confianza/carrera -> debido proceso,
-interés propietario, principio de mérito, reglamento de personal) únicamente
-para DESCUBRIR candidatos. Esas expansiones nunca sustituyen la verificación del
-PDF oficial ni convierten un caso en pertinente por sí solas.
+Para preguntas doctrinales complejas, el motor DEBE separar internamente el patrón
+fáctico de las doctrinas jurídicas potencialmente controlantes. Puede expandir
+conceptos de recuperación (por ejemplo, empleado de confianza/carrera -> debido
+proceso, interés propietario, principio de mérito, reglamento de personal, planes
+de clasificación/retribución) para DESCUBRIR candidatos y luego leer el mismo PDF
+oficial con consultas doctrinales más estrechas. No exijas que todos los hechos y
+la doctrina aparezcan en el mismo párrafo: un precedente puede ser controlante
+aunque su catálogo use una materia distinta de la formulación del usuario.
+
+Las expansiones nunca sustituyen la verificación de la cita ni del PDF oficial,
+y nunca deben introducir por nombre un caso que no haya sido descubierto por las
+fuentes. Un resultado vacío después de agotar el presupuesto significa solamente
+que no hubo coincidencias verificadas dentro del presupuesto de recuperación; no
+permite concluir que la jurisprudencia no existe.
 
 REGLA OBLIGATORIA DE VIGENCIA LEGISLATIVA:
 Nunca presentes una ley, código, reglamento o disposición como "vigente",
