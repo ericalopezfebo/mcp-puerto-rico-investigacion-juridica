@@ -1,0 +1,13 @@
+services:
+  mcp-investigacion-juridica:
+    build:
+      context: https://github.com/ericalopezfebo/mcp-puerto-rico-investigacion-juridica.git#main
+    container_name: mcp-investigacion-juridica-pr
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      MCP_HOST: "0.0.0.0"
+      MCP_PORT: "8000"
+      MCP_ALLOWED_HOSTS: "2.25.73.68,2.25.73.68:*,srv1792751.hstgr.cloud,srv1792751.hstgr.cloud:*"
+      MCP_ALLOWED_ORIGINS: "http://2.25.73.68:8000,http://srv1792751.hstgr.cloud:8000"
