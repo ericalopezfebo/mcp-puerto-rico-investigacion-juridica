@@ -3,8 +3,9 @@ from __future__ import annotations
 
 import mixed_server
 import corpus_runtime  # noqa: F401 - applies corpus-first runtime patches and tools
+import authority_directory  # noqa: F401 - discovery-only jurisprudence directory context
 
-VERSION = "0.15.0"
+VERSION = "0.15.1"
 mixed_server.VERSION = VERSION
 mixed_server.research_server.VERSION = VERSION
 mcp = mixed_server.mcp
