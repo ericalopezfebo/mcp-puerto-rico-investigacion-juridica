@@ -9,8 +9,12 @@ Deploy this process behind HTTPS. MCP clients connect to the resulting /mcp URL.
 from __future__ import annotations
 
 import os
+import secrets
 
 from mcp.server.transport_security import TransportSecuritySettings
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.requests import Request
+from starlette.responses import JSONResponse, Response
 
 from mixed_server import mcp
 
@@ -91,9 +95,54 @@ def _configure_remote_server() -> None:
     )
 
 
-def main() -> None:
+def _authorized(authorization: str | None, expected_token: str) -> bool:
+    """Validate a Bearer token without leaking timing information."""
+    if not authorization or not authorization.startswith("Bearer "):
+        return False
+    supplied = authorization.removeprefix("Bearer ").strip()
+    return bool(supplied) and secrets.compare_digest(supplied, expected_token)
+
+
+class BearerAuthMiddleware(BaseHTTPMiddleware):
+    """Protect every MCP request while leaving the health probe public."""
+
+    def __init__(self, app, token: str):
+        super().__init__(app)
+        self.token = token
+
+    async def dispatch(self, request: Request, call_next) -> Response:
+        if request.url.path == "/health":
+            return JSONResponse({"status": "ok"})
+        if not _authorized(request.headers.get("authorization"), self.token):
+            return JSONResponse(
+                {"error": "unauthorized"},
+                status_code=401,
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+        return await call_next(request)
+
+
+def create_remote_app():
+    """Create the authenticated ASGI application used in remote deployments."""
     _configure_remote_server()
-    mcp.run(transport="streamable-http")
+    token = os.getenv("MCP_API_KEY", "").strip()
+    allow_insecure = os.getenv("MCP_ALLOW_INSECURE", "").lower() in {"1", "true", "yes"}
+    if not token and not allow_insecure:
+        raise RuntimeError(
+            "MCP_API_KEY is required for remote deployment. "
+            "Set MCP_ALLOW_INSECURE=true only for isolated local development."
+        )
+    app = mcp.streamable_http_app()
+    if token:
+        app.add_middleware(BearerAuthMiddleware, token=token)
+    return app
+
+
+def main() -> None:
+    import uvicorn
+
+    app = create_remote_app()
+    uvicorn.run(app, host=mcp.settings.host, port=mcp.settings.port)
 
 
 if __name__ == "__main__":

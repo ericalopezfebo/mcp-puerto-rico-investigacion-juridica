@@ -19,6 +19,19 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v5
 
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Test release candidate
+        run: |
+          pip install -e ".[test]"
+          pytest -q
+
+      - name: Build release candidate
+        run: docker build -t mcp-puerto-rico-investigacion-juridica:${{ github.sha }} .
+
       - name: Deploy to Hostinger VPS
         uses: hostinger/deploy-on-vps@v2
         with:
@@ -26,3 +39,7 @@ jobs:
           virtual-machine: ${{ vars.HOSTINGER_VM_ID }}
           project-name: mcp-investigacion-juridica-pr
           docker-compose-path: docker-compose.yml
+          environment-variables: |
+            MCP_API_KEY=${{ secrets.MCP_API_KEY }}
+            MCP_ALLOWED_HOSTS=${{ vars.MCP_ALLOWED_HOSTS }}
+            MCP_ALLOWED_ORIGINS=${{ vars.MCP_ALLOWED_ORIGINS }}
