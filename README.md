@@ -202,7 +202,7 @@ Ejemplo de configuración local:
   "mcpServers": {
     "puerto-rico-investigacion-juridica": {
       "command": "/RUTA/AL/REPO/.venv/bin/python",
-      "args": ["/RUTA/AL/REPO/mixed_server.py"]
+      "args": ["/RUTA/AL/REPO/bootstrap_server.py"]
     }
   }
 }
@@ -213,7 +213,7 @@ En Windows usa `.venv\\Scripts\\python.exe`.
 ### Claude Code
 
 ```bash
-claude mcp add puerto-rico-investigacion-juridica -- /RUTA/AL/REPO/.venv/bin/python /RUTA/AL/REPO/mixed_server.py
+claude mcp add puerto-rico-investigacion-juridica -- /RUTA/AL/REPO/.venv/bin/python /RUTA/AL/REPO/bootstrap_server.py
 ```
 
 ## ChatGPT / servidor remoto
