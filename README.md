@@ -38,6 +38,7 @@ No intenta copiar bases privadas, anotaciones editoriales, headnotes, clasificac
 ### Jurisprudencia del Tribunal Supremo — núcleo verificado
 
 - `buscar_mejores_sentencias` — **herramienta preferida cuando el usuario pide “las mejores”, “más relevantes” o “Top N” decisiones.** Ejecuta un loop interno de descubrimiento → verificación oficial → reranking, sin recorrer años del más reciente al más antiguo y sin dar un bono automático por recencia.
+- `investigar_argumento_juridico` — loop superior, limitado y auditable para una pregunta, proposición y hechos materiales. Ejecuta búsquedas complementarias, acumula autoridades oficiales, exige una pasada potencialmente adversa, comprueba estabilidad y termina por suficiencia o presupuesto. No declara automáticamente holding ni vigencia.
 - `investigar_sentencias` — búsqueda documental por contenido de PDFs oficiales con rango de años explícito.
 - `buscar_sentencias` — búsqueda temática por palabras/frases y año.
 - `buscar_por_cita` — verificación exacta de una cita TSPR; no sustituye una cita inexistente por otra parecida.
