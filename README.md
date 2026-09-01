@@ -226,6 +226,25 @@ https://TU-DOMINIO/mcp
 
 El CI construye la imagen Docker además de ejecutar los tests/imports, para detectar módulos faltantes antes de publicar cambios. El endpoint de demostración no tiene SLA y un plan gratuito puede sufrir arranque en frío o timeouts.
 
+### Seguridad y despliegue en Hostinger
+
+El servidor remoto exige `MCP_API_KEY` y espera el encabezado
+`Authorization: Bearer <token>`. No inicia en modo remoto sin esa variable, salvo
+que se habilite explícitamente `MCP_ALLOW_INSECURE=true` para desarrollo local
+aislado. El endpoint público `GET /health` permite comprobar el contenedor sin
+exponer herramientas.
+
+El workflow `deploy-hostinger.yml` ejecuta las pruebas y construye la imagen
+antes del despliegue. Utiliza estos valores de GitHub Actions:
+
+- secret `HOSTINGER_API_KEY`
+- variable `HOSTINGER_VM_ID`
+- secret `MCP_API_KEY`
+- variables `MCP_ALLOWED_HOSTS` y `MCP_ALLOWED_ORIGINS` para el dominio HTTPS
+
+Cada push a `main` despliega únicamente después de que las pruebas y el build
+terminen correctamente.
+
 ## Integridad jurídica
 
 El MCP debe observar estas reglas:
