@@ -4,10 +4,21 @@ services:
       context: https://github.com/ericalopezfebo/mcp-puerto-rico-investigacion-juridica.git#main
     container_name: mcp-investigacion-juridica-pr
     restart: unless-stopped
+    init: true
+    read_only: true
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp:size=64m,mode=1777
     ports:
-      - "8000:8000"
+      # Loopback only. Publish externally through an authenticated HTTPS reverse proxy.
+      - "127.0.0.1:8000:8000"
     environment:
       MCP_HOST: "0.0.0.0"
       MCP_PORT: "8000"
-      MCP_ALLOWED_HOSTS: "2.25.73.68,2.25.73.68:*,srv1792751.hstgr.cloud,srv1792751.hstgr.cloud:*,mcp.2-25-73-68.sslip.io,mcp.2-25-73-68.sslip.io:*"
-      MCP_ALLOWED_ORIGINS: "http://2.25.73.68:8000,http://srv1792751.hstgr.cloud:8000,https://mcp.2-25-73-68.sslip.io"
+      MCP_ALLOWED_HOSTS: "${MCP_ALLOWED_HOSTS:?configure exact HTTPS hostnames}"
+      MCP_ALLOWED_ORIGINS: "${MCP_ALLOWED_ORIGINS:?configure exact HTTPS origins}"
+    pids_limit: 128
+    mem_limit: 512m
+    cpus: 1.0
