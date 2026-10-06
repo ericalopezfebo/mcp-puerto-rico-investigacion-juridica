@@ -1,0 +1,14 @@
+{
+  "$schema": "https://glama.ai/mcp/schemas/server.json",
+  "maintainers": ["ericalopezfebo"],
+  "name": "MCP Puerto Rico Investigación Jurídica",
+  "description": "Investigación jurídica puertorriqueña con fuentes oficiales, verificación de autoridad y un loop acotado y auditable para comparar sentencias.",
+  "keywords": [
+    "puerto-rico",
+    "legal-research",
+    "case-law",
+    "mcp",
+    "ai-agent",
+    "source-verification"
+  ]
+}

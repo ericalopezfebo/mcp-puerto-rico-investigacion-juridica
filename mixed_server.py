@@ -12,6 +12,11 @@ import jrt_server  # registers verified JRT search
 import vigencia_server  # registers single-page legislative currency safeguards
 import legislative_graph  # registers automatic SUTRA amendment-history graph
 
+# Compatibility facade retained for clients/tests that historically accessed
+# the labor search through research_server.
+if not hasattr(research_server, "buscar_decisiones_laborales"):
+    research_server.buscar_decisiones_laborales = jrt_server.search_jrt_fulltext
+
 VERSION = "0.15.0"
 research_server.VERSION = VERSION
 mcp = smart_server.mcp
@@ -26,10 +31,16 @@ de Puerto Rico, usa `buscar_mejores_sentencias`.
 No uses `investigar_sentencias` ni `buscar_sentencias` como herramienta principal
 para ese tipo de petición, salvo que el usuario haya pedido expresamente limitar
 la investigación a un año o rango de años específico. `buscar_mejores_sentencias`
-debe competir candidatos globalmente por relevancia jurídica verificada, sin
-bono por recencia y sin recorrer años del más reciente al más antiguo para llenar
+debe competir candidatos globalmente por relevancia jurídica verificada, sin bono por recencia
+y sin recorrer años del más reciente al más antiguo para llenar
 un cupo. Si no hay suficientes autoridades verificables y realmente pertinentes,
 devuelve menos resultados en vez de completar el Top-N con casos marginales.
+
+Cuando el usuario provea una pregunta jurídica, una proposición que desea sostener
+y hechos materiales, usa `investigar_argumento_juridico`. Esa herramienta ejecuta
+un loop superior con varias formulaciones, búsqueda potencialmente adversa,
+registro auditable y límites de rondas. Sus resultados siguen requiriendo revisión
+profesional del holding, vigencia y aplicación a los hechos.
 
 REGLA CORPUS-FIRST:
 Antes de hacer discovery masivo en fuentes externas, usa el corpus jurisprudencial
@@ -152,7 +163,7 @@ async def mixed_authority_research(
 
     labor_enabled = _looks_labor_related(argumento)
     if labor_enabled:
-        tasks.append(jrt_server.search_jrt_fulltext(argumento, maximo=min(maximo, 5)))
+        tasks.append(research_server.buscar_decisiones_laborales(argumento, maximo=min(maximo, 5)))
         labels.append("laboral_verificado")
 
     if ano_apelaciones is not None:
