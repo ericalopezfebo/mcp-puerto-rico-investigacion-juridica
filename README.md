@@ -38,6 +38,7 @@ No intenta copiar bases privadas, anotaciones editoriales, headnotes, clasificac
 ### Jurisprudencia del Tribunal Supremo — núcleo verificado
 
 - `buscar_mejores_sentencias` — **herramienta preferida cuando el usuario pide “las mejores”, “más relevantes” o “Top N” decisiones.** Ejecuta un loop interno de descubrimiento → verificación oficial → reranking, sin recorrer años del más reciente al más antiguo y sin dar un bono automático por recencia.
+- `investigar_argumento_juridico` — loop superior, limitado y auditable para una pregunta, proposición y hechos materiales. Ejecuta búsquedas complementarias, acumula autoridades oficiales, exige una pasada potencialmente adversa, comprueba estabilidad y termina por suficiencia o presupuesto. No declara automáticamente holding ni vigencia.
 - `investigar_sentencias` — búsqueda documental por contenido de PDFs oficiales con rango de años explícito.
 - `buscar_sentencias` — búsqueda temática por palabras/frases y año.
 - `buscar_por_cita` — verificación exacta de una cita TSPR; no sustituye una cita inexistente por otra parecida.
@@ -201,7 +202,7 @@ Ejemplo de configuración local:
   "mcpServers": {
     "puerto-rico-investigacion-juridica": {
       "command": "/RUTA/AL/REPO/.venv/bin/python",
-      "args": ["/RUTA/AL/REPO/mixed_server.py"]
+      "args": ["/RUTA/AL/REPO/bootstrap_server.py"]
     }
   }
 }
@@ -212,7 +213,7 @@ En Windows usa `.venv\\Scripts\\python.exe`.
 ### Claude Code
 
 ```bash
-claude mcp add puerto-rico-investigacion-juridica -- /RUTA/AL/REPO/.venv/bin/python /RUTA/AL/REPO/mixed_server.py
+claude mcp add puerto-rico-investigacion-juridica -- /RUTA/AL/REPO/.venv/bin/python /RUTA/AL/REPO/bootstrap_server.py
 ```
 
 ## ChatGPT / servidor remoto
@@ -224,6 +225,25 @@ https://TU-DOMINIO/mcp
 ```
 
 El CI construye la imagen Docker además de ejecutar los tests/imports, para detectar módulos faltantes antes de publicar cambios. El endpoint de demostración no tiene SLA y un plan gratuito puede sufrir arranque en frío o timeouts.
+
+### Seguridad y despliegue en Hostinger
+
+El servidor remoto exige `MCP_API_KEY` y espera el encabezado
+`Authorization: Bearer <token>`. No inicia en modo remoto sin esa variable, salvo
+que se habilite explícitamente `MCP_ALLOW_INSECURE=true` para desarrollo local
+aislado. El endpoint público `GET /health` permite comprobar el contenedor sin
+exponer herramientas.
+
+El workflow `deploy-hostinger.yml` ejecuta las pruebas y construye la imagen
+antes del despliegue. Utiliza estos valores de GitHub Actions:
+
+- secret `HOSTINGER_API_KEY`
+- variable `HOSTINGER_VM_ID`
+- secret `MCP_API_KEY`
+- variables `MCP_ALLOWED_HOSTS` y `MCP_ALLOWED_ORIGINS` para el dominio HTTPS
+
+Cada push a `main` despliega únicamente después de que las pruebas y el build
+terminen correctamente.
 
 ## Integridad jurídica
 

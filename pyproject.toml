@@ -1,6 +1,6 @@
 [project]
 name = "mcp-puerto-rico-investigacion-juridica"
-version = "0.15.2"
+version = "0.16.0"
 description = "MCP de investigación jurídica de Puerto Rico para buscar y verificar jurisprudencia, legislación, reglamentos, decisiones administrativas y actualidad jurídica pública desde Claude, ChatGPT y otros clientes MCP."
 readme = "README.md"
 license = { file = "LICENSE" }
@@ -30,7 +30,7 @@ mcp-puerto-rico-sentencias = "bootstrap_server:main"
 mcp-puerto-rico-sentencias-remote = "bootstrap_remote:main"
 
 [tool.setuptools]
-py-modules = ["server", "research_server", "smart_server", "search_tuning", "doctrine_ontology", "corpus_index", "corpus_builder", "corpus_runtime", "authority_reader", "authority_directory", "authority_directory_extended", "jrt_server", "vigencia_server", "legislative_graph", "mixed_server", "remote_server", "bootstrap_server", "bootstrap_remote"]
+py-modules = ["server", "research_server", "smart_server", "legal_research_loop", "search_tuning", "doctrine_ontology", "corpus_index", "corpus_builder", "corpus_runtime", "authority_reader", "authority_directory", "authority_directory_extended", "jrt_server", "vigencia_server", "legislative_graph", "mixed_server", "remote_server", "bootstrap_server", "bootstrap_remote"]
 
 [tool.setuptools.package-data]
 "*" = ["data/*.jsonl"]
