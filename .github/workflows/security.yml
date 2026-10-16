@@ -1,0 +1,43 @@
+name: Security
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    - cron: "23 10 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  dependency-audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: python -m pip install --upgrade pip pip-audit
+      - run: pip-audit
+
+  secret-patterns:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Reject common private material
+        shell: bash
+        run: |
+          set -euo pipefail
+          forbidden='(^|/)(\.env|id_rsa|id_ed25519|.*\.(p12|pfx|pem|key|docx|doc|pdf))$'
+          if git ls-files | grep -E "$forbidden"; then
+            echo "Potential secret, key, or client-document material is tracked."
+            exit 1
+          fi

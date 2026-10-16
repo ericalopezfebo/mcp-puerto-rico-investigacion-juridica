@@ -291,6 +291,18 @@ def catalogo_fuentes_juridicas() -> dict[str, Any]:
     }
 
 
+async def buscar_decisiones_laborales(
+    consulta: str, maximo: int = 5, paginas: int = 3
+) -> dict[str, Any]:
+    """Compatibility boundary for verified JRT research.
+
+    The import is intentionally local to avoid a module-registration cycle.
+    """
+    import jrt_server
+
+    return await jrt_server.search_jrt_fulltext(consulta, maximo, paginas)
+
+
 @mcp.tool()
 async def buscar_decisiones_apelaciones(consulta: str, ano: int = 2026, maximo: int = 10) -> dict[str, Any]:
     """Busca determinaciones finales públicas del Tribunal de Apelaciones."""

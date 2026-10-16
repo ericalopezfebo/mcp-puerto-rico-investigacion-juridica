@@ -217,7 +217,15 @@ async def doctrine_aware_verify_candidate(
 def faster_minimum_verifications(maximo: int) -> int:
     """Require a meaningful sample without forcing 25+ PDF reads for Top-5."""
     requested = max(1, int(maximo))
-    target = max(smart_server.VERIFY_BATCH_SIZE * 2, requested * 3)
+    if (
+        smart_server.VERIFY_BATCH_SIZE == 5
+        and smart_server.MAX_OFFICIAL_VERIFICATIONS == 24
+    ):
+        target = max(smart_server.VERIFY_BATCH_SIZE * 2, requested * 3)
+    else:
+        # Preserve the core engine's conservative sampling rule when callers
+        # override the tuning constants for larger or security-sensitive runs.
+        target = max(smart_server.VERIFY_BATCH_SIZE * 3, requested * 5)
     return min(smart_server.MAX_OFFICIAL_VERIFICATIONS, target)
 
 
@@ -229,4 +237,4 @@ smart_server._minimum_verifications_before_stability = faster_minimum_verificati
 smart_server.VERIFY_BATCH_SIZE = 5
 smart_server.VERIFY_CONCURRENCY = 5
 smart_server.MAX_OFFICIAL_VERIFICATIONS = 24
-smart_server.STABLE_ROUNDS_REQUIRED = 1
+smart_server.STABLE_ROUNDS_REQUIRED = 2
